@@ -60,105 +60,36 @@ This web page is just an example.
 \caption{The mapping from a web page to a set of \emph{shingles}.}
 \label{fig:shingle}
 \end{figure}
-  
-\subsection{Necessity of Approximation}
-Imagine we want to identify the $k$ most frequent items in a data stream. The obvious solution method is to have a counter for each item, increment them as the stream is processed and then return the $k$ items with the highest counters. An item can appear at most $n$ times in a stream so $\Theta(\log n)$ bits suffice to encode the counter values. The space complexity of such a method is therefore $O(m \log n)$. Clearly, we want to do better than that.
 
-Let us reconsider the problem formulation. Can we improve the space bound if we modify our problem so that instead of finding the $k$ most frequent items, we only identify items that have a frequency above a certain threshold? Unfortunately, the answer to that question is negative.  provide the following lemma.\\
+Clearly, the number of possible shingles and therefore $D$ is huge. Assume $10^5$ different English words, we have $D=\left(10^5\right)^5 \in \Theta\left(2^{25}\right)$. Thus computing the exact similarities for all pairs of pages of a web search would require prohibitive storage. For a single pair, we would already need $\Theta(D)$ storage.
 
-\begin{mylemma}
-Any algorithm which guarantees to find all and only items which have frequency greater than $\frac{1}{k + 1}$ must store $\Omega(m)$ bits.
-\end{mylemma}
+\subsection{Original Minwise Hashing}
 
-Furthermore, \cite{Karp:2003:SAF:762471.762473} propose and prove that any \textit{on-line} algorithm that solves this very same problem exactly needs to store $\Omega(m \log (\frac{n}{m}))$ bits in the worst case.
+\section{b-bit k-permutation Minwise Hashing}
 
-This is bad news if $m$, the size of the universe from which items can be drawn, is very large or infinite. The implications of these results are pretty clear. If we need a lower space bound, we must sacrifice accuracy. Fortunately, a multitude of algorithms have been conceived of to do just that. In section 2 of this report, we will consider several such algorithms.
+\begin{algorithm}[H]
+\caption{\textsc{b-bit Minwise Hashing} algorithm, applied to estimating pairwise resemblances in a collection of $n$ sets.}
+\label{MinwiseHashingAlg}
+\begin{algorithmic}
+\Require Sets $S_i \subseteq \Omega = \{0,1,\ldots,D-1\}, i = 1 \text{ to } n$. \Comment $D = \left| \Omega \right|$
+\Ensure Estimated resemblance $\hat{R}_b$
+\State // Pre-processing
+\State Generate $k$ random permutations $\pi_j: \Omega\longrightarrow\Omega, j=1\text{ to }k$
+\ForAll{$i = 1 \text{ to } n, j = 1 \text{ to } k$}
+	\State Store the lowest $b$ bits of $\min(\pi_j(S_i))$, denoted by $e_{S_i,b,\pi_j}$.
+\EndFor
+\State
+\State // Estimation (Use two sets $X,Y$ as an example)
+\State Compute $\hat{P}_b = \frac{1}{k}\sum_{j=1}^k 1 \left\lbrace  e_{X,b,\pi_j } = e_{Y,b,\pi_j } \right\rbrace$
+\State Estimate the resemblance by $\hat{R}_b = \frac{\hat{P}_b-F_{\text{pos}}}{1-F_{\text{neg}}}$
+\end{algorithmic}
+\end{algorithm}
 
-\subsection{Motivating Examples}
-Without a doubt, there are countless good examples of relevant problems, whose solutions rely on the identification of frequently occurring items. For lack of imagination, let us visit some of the motivating examples, which appear repeatedly in the literature.
 
-\subsubsection{Networks}
-Internet and telephony providers may benefit from identifying which particular nodes in a network generate the most traffic, for example by inspecting sender-recipient pairs of network packets. The provider may use this data to decide where the infrastructure needs strengthening, how to re-route traffic to avoid bottlenecks and balance the load. Such information may also play a role in identifying (and billing) customers who exceed usage quotas. 
+\subsection{Fundamental Results}
 
-The ability to query for the most frequent items, as a data stream is being processed, allows for real-time monitoring of network traffic anomalies. An anomaly may have a benign cause, such as an advertisement campaign promoting a particular web site, or it may have a more sinister origin, such as a denial-of-service attack. Regardless, anomaly detection plays an important role in preventing service disruption.
+\subsection{Experiments}
 
-\subsubsection{Association Rule Learning}
-The archetypal example for association rule learning is that of a supermarket. This is most likely due to a seminal paper by \cite{Agrawal:1993:MAR:170036.170072} on association rule learning, in which the authors rely on data from a large retailer for empirical experiments. 
-
-Supermarkets, or supermarket chains, collect vast amounts of basket data. These data can be mined in order to reveal so called association rules. This can be accomplished by identifying subsets of products, which frequently appear together in shopping baskets. For example, we might expect to see \{bratwurst, sauerkraut\} relatively frequently. If we find that there is a statistically significant correlation between these two products, we can infer the association rule \{bratwurst\} $\Rightarrow$ \{sauerkraut\}. Let us define more formally what we mean by that.
-
-In our supermarket setting, we can define $\mathcal{I}$ as the set of products on sale. A single basket\footnote{In typical association rule terms, the basket would be referred to as a \textit{transaction}.} is then a subset of $\mathcal{I}$ and our data stream is a sequence of baskets. We say that a subset $X \subseteq \mathcal{I}$ has \textit{support} $s$ if $X$ appears in a fraction $f_X \geq s$ of all baskets seen so far. For two disjoint subsets $X, Y \subseteq \mathcal{I}$, the \textit{confidence} of the association rule $X \Rightarrow Y$ is given by 
-$$
-\frac{support(X \cup Y)}{support(X)} \,.
-$$
-Alternatively, we can interpret the confidence of the rule as $\Pr[Y | X]$. There are different interest measures available for association rules. One common method is to only elicit rules having a confidence above a fixed threshold.
-
-Armed with association rules, the supermarket can improve its product placements and promotions. Similarly, a web merchant might use association rules to suggest products based on the current basket contents.
-
-\section{Overview of Algorithms}
-In this section, we will briefly discuss several algorithms that approximate frequency information in a single pass.
-
-\subsection{Frequency Moments}
-In \citep{Alon1999137}, the authors describe several randomized algorithms for approximating the \textit{frequency moments} of a singleton data stream. If $c_j$ denotes the number of occurrences of item $j % \in \mathcal{I}
-$ in a data stream, the frequency moments are defined as
-$$
-F_k = \sum_{j \in \mathcal{I}} c_j^k
-$$
-for every $k \geq 0$. Of particular interest are $F_0$, which corresponds to the number of distinct items in the stream, and $F_2$, which corresponds to the so called \textit{repeat rate} or \textit{Gini's index of homogeneity}. Both can be used to detect the presence of high frequency items within the stream. For example, the fraction $\frac{F_0}{m}$ is exactly 1 if no items are repeated in the stream. A smaller fraction indicates that some items are repeated. Similarly, $\frac{F_2}{m}$ is exactly 1 when no items are repeated, and exactly $m$ if all items in the stream are the same. The authors show that both $F_0$ and $F_2$ can be approximated using only $O(\log m)$ memory bits and that this bound is tight in both cases. Alon et al. present an $O(\log m)$ algorithm for approximating $F_2$ whereas $F_0$ already had a known $O(\log m)$ approximation algorithm due to \cite{4568063}. While the frequency moments can be used to detect the presence of frequent items, they cannot be used to identify them. We will therefore shift our focus towards algorithms capable of identifying high frequency items and itemsets. However, it should be noted that the paper by \cite{Alon1999137} is both interesting and involved, as it showcases the authors' mastery at rigorous mathematical analysis of algorithms, deterministic and randomized alike.
-
-\subsection{Simples!}
-Let us revisit the problem of identifying items with a frequency above a certain threshold $s$. We denote the set of such items by 
-$$I(x, s) = \left\{j \; | \; j \in \mathcal{I} \wedge f_j \geq s \right\}$$
-where $f_j$ is the relative frequency of $j$ within singleton data stream $x$. \cite{Karp:2003:SAF:762471.762473} describe a delightfully simple algorithm that, in a single pass, returns a superset $F \supseteq I(x, s)$ such that $|F| \leq \frac{1}{s}$, using only $O(\frac{1}{s})$ space. Moreover, the algorithm has constant amortized running time \footnote{A rather novel data structure is required to achieve constant amortized running time}. The algorithm can be extended to compute $I(x, s)$ exactly by making a second pass over the data stream.
-
-The algorithm is a generalization of the following method for identifying a \textit{majority item}\footnote{An item with frequency greater than 50\%} within a sequence.
-\begin{enumerate}
-\item Pick two elements in the sequence that do not have the same value.
-\item Remove the two elements from the sequence.
-\item Repeat the previous two steps until it is no longer possible.
-\end{enumerate}
-If there was a majority item in the sequence, then the remaining sequence will be non-empty and only contain copies of the majority item.
-
-The generalized version maintains $\lfloor \frac{1}{s} \rfloor$ counters, which initially are set to 0. The first time the algorithm sees a particular item in the stream, it assigns a counter to it. When it sees an item, which already has an associated counter, it increments it. When all the counters have been assigned and an item with no assigned counter is encountered, the algorithm decrements \textbf{all} counters repeatedly by 1 until at least of them becomes 0, and then reassigns that counter to the new item. The set $F$ consists of those items which have an associated counter.
-
-While the generalized algorithm is guaranteed to return all items with frequency greater than $s$, it makes no guarantees about false positives. In fact, it may return up to $\lfloor \frac{1}{s} \rfloor$ items, even when $I(x, s) = \emptyset$. Moreover, it is not clear whether it is feasible to extend this algorithm to identify frequent itemsets in non-simpleton data streams. We will now consider two algorithms that provide better guarantees.
-
-\subsection{\textsc{StickySampling} and \textsc{LossyCounting}}
-\cite{Manku02approximatefrequency} describes two algorithms that both return a superset of $I(x, s)$, along with estimated frequencies of the items (or itemsets) returned. Both take as input a user-configurable error parameter $\varepsilon$. Moreover, both of the algorithms provide the following guarantees:
-\begin{enumerate}
-\item All items whose true frequency exceeds $s$ are output.
-\item No item whose true frequency is less than $s - \varepsilon$ is output.
-\item Estimated frequencies are less than the true frequencies by at most $\varepsilon$.
-\end{enumerate}
-
-One algorithm, \textsc{StickySampling}, is randomized and takes an additional parameter $\delta$. It satisfies the aforementioned guarantees with probability at least $1-\delta$ and stores at most $\frac{2}{\varepsilon}\log (s^{-1}\delta^{-1})$ entries in its summary data structure. It samples elements from the stream with a certain probability. Once an item has been sampled, a counter is maintained for it. At certain intervals, which grow exponentially with the number of elements scanned, the sampling probability is halved and the counters in the summary data structure adjusted, as if the new sampling rate had been used from the beginning. Elements whose counter reaches 0 are ejected from the data structure.
-
-The other algorithm, \textsc{LossyCounting}, is deterministic and always satisfies the guarantees which we laid out before. It is similar to \textsc{StickySampling}, in that it maintains a summary data structure with counters for certain elements in the stream. The difference is that \textsc{LossyCounting} adds all items to the data structure as they are encountered and then prunes it at intervals, whose size remain the same while the stream is scanned. The size of the intervals determines how aggressively the algorithm prunes its summary data structure, and is determined by error parameter $\varepsilon$. 
-
-In the worst case, \textsc{LossyCounting} stores $\frac{1}{\varepsilon}\log (\varepsilon \cdot n)$ entries. Clearly, this is inferior to the bound that \textsc{StickySampling} achieves, but appearances can be deceiving. The worst case scenario for \textsc{StickySampling} is a stream with no duplicates. In contrast, the worst case for \textsc{LossyCounting} is a somewhat pathological stream, which is highly unlikely to occur under natural circumstances. If the data stream consists of elements drawn independently from a fixed probability distribution, the expected number of entries stored is less than $\frac{7}{\varepsilon}$. That is a remarkable result.
-
-The authors subjected both algorithms to a series of empirical tests and in all of them \textsc{LossyCounting} used only a fraction of the memory that  \textsc{StickySampling} did. Furthermore, the authors also detail an extended implementation of \textsc{LossyCounting} which can identify high-frequency itemsets in a non-singleton data stream. Out of the four papers I studied, this was the only one that provided an algorithm with this capability. Because of that, we will take a closer look at \textsc{LossyCounting} in section \ref{LossyCounting}.
-
-It should be noted that the authors only provide analysis of their algorithms for singleton data streams. The extended itemset implementation of \textsc{LossyCounting} behaves a bit differently than the one analysed. Furthermore, the number of possible subsets of $\mathcal{I}$ is $2^{|\mathcal{I}|}$, so there is potential for an exponential growth in space complexity over that of the singleton case.
-
-\subsection{With Deletions}
-One of the motivating examples we considered earlier was network traffic monitoring, by tracking the frequency of packet source-destination pairs. But what if we want to monitor network connections, rather than the flow of packets? The number of connections between some particular endpoints can both increase and decrease, similar to tuples being inserted and deleted from a database table. All of the algorithms we've considered so far have focused on \textit{insert-only} types of streams. An algorithm by \cite{Cormode:2003:WHW:773153.773182} can handle streams consisting of both inserts and deletes.
-
-The fundamental principle behind the algorithm is to segment the item universe $\mathcal{I}$ into groups, each with its own counter that is incremented whenever an item, belonging to the group is inserted and decrement it when an item is deleted. A series of tests, which check whether a group contains a high-frequency item, are then made to identify the items whose relative frequency is above the threshold $s$.
-
-As a gentle introduction, the authors provide an example for identifying a majority item in a stream of integers drawn from $[0, m-1]$. One counter $c$ is incremented for every insert and decremented for every delete, thus tracking the number of \textit{live} items. $\lceil \log(m)_2 \rceil$ counters $c_j$ are then maintained, one for each bit position in the binary representation of the integers. When an integer $i$ is inserted or deleted, the binary representation of $i$ is inspected and counters corresponding to the position of 1 bits are modified. If there is a majority item in the stream, it is given by the following formula
-$$
-\sum_{j=1}^{\lceil \log_2 m \rceil} 2^j gt(c_j, c/2)
-$$
-where $gt(i, j)$ is an indicator function that returns 1 if $i > j$ and 0 otherwise. Every summand corresponds to an individual group test. If there is some majority item $i$, then clearly $gt(c_j, c/2) = 0$ for those bit positions $j$ that are 0 in the binary representation of $i$ and $gt(c_j, c/2) = 1$ for those bits that are 1.
-
-The algorithm generalizes this method to identify the items in $I(x, s)$. It is a bit more complex, and involves the use of hash functions to generate $\frac{1}{s}\log (\frac{1}{s})$ groups in a pseudo-random fashion. Those groups are then split up into $\log(m)$ subgroups.
-
-Being randomized, this algorithm provides probabilistic guarantees. With probability at least $1-\delta$ it finds all items in $I(x, s)$. Moreover, if the frequency distribution is such that low-frequency items do not feature prominently\footnote{That is, if the sum of the frequencies of all items, except the $1/s$ most frequent items, is less than $s$.}, the algorithm is guaranteed not to output false positives. The space complexity is $O\left(\frac{1}{s} \log\left(\frac{1}{s\cdot \delta}\right) \log(m)\right)$. The time complexity of querying the summary data structure is the same. The time complexity of an update is $O\left(\log\left(\frac{1}{s\cdot \delta}\right) \log(m)\right)$.
-
-Again, it is not entirely clear whether this algorithm can easily be extended to handle itemsets. The fundamental item representation of this algorithm is an integer. As such, the algorithm requires there to be a bijection from $\mathcal{I}$ to a finite interval of integers. If we were to enumerate all subsets of $\mathcal{I}$ we would need $2^{|\mathcal{(I)}|}$ integers and then the space and time bounds become linear in $|\mathcal{(I)}|$.
-
-The algorithms we've explored all have slightly different characteristics. Table \ref{ComparisonTable} summarizes their respective strengths and weaknesses.
 
 %\begin{center}
 \begin{table}
@@ -185,59 +116,11 @@ The algorithms we've explored all have slightly different characteristics. Table
 \end{table}
 %\end{center}
 
-\section{\textsc{LossyCounting}}\label{LossyCounting}
-We will now take a closer look at the \textsc{LossyCounting} algorithm. First we will constrain ourselves to singleton data streams and then we will consider the more complicated itemset version.
+\section{Comparison with Hamming Distance Algorithms}
 
-\subsection{Singleton Version}
-
-\textsc{LossyCounting} maintains a summary data structure $D$ with entries of the form $(i, c, \Delta)$, where $i \in \mathcal{(I)}$, $c$ is the estimated number of occurrences of $i$ in the stream and $\Delta$ is the maximum error of that estimate. The stream is conceptually split up into \textit{buckets}\footnote{\textit{Windows} would perhaps be a more suitable term to avoid confusion with histogram buckets.} of width $\lceil \frac{1}{\varepsilon} \rceil$. The buckets are numbered from 1 to $\lceil \frac{n}{\varepsilon} \rceil$ and a variable named $b_{current}$ keeps track of the current bucket number.
-
-When \textsc{LossyCounting} encounters an item $i$ that is not already in $D$, it adds $(i, 1, b_{current} - 1)$ to $D$. Otherwise it simply increments its counter $c$. Whenever the algorithm reaches a bucket boundary, it removes all entries from $D$ having $c + \Delta \leq b_{current}$. The output of the algorithm is the set of items in $D$ having $c \geq (s-\varepsilon)\cdot n$. A complete pseudocode version\footnote{Based on pseudocode from http://www.mathcs.emory.edu/\textasciitilde cheung/Courses/584-StreamDB/Syllabus/07-Heavy/Manku.html} of \textsc{LossyCount} is given in Algorithm \ref{LossyCountingAlg}.
-
-\begin{algorithm}[H]
-\caption{\textsc{b-bit Minwise Hashing} algorithm, applied to estimating pairwise resemblances in a collection of $n$ sets.}
-\label{MinwiseHashingAlg}
-\begin{algorithmic}
-\Require Sets $S_i \subseteq \Omega = \{0,1,\ldots,D-1\}, i = 1 \text{ to } n$. \Comment $D = \left| \Omega \right|$
-\Ensure Estimated resemblance $\hat{R}_b$
-\State // Pre-processing
-\State Generate $k$ random permutations $\pi_j: \Omega\longrightarrow\Omega, j=1\text{ to }k$
-\ForAll{$i = 1 \text{ to } n, j = 1 \text{ to } k$}
-	\State Store the lowest $b$ bits of $\min(\pi_j(S_i))$, denoted by $e_{S_i,b,\pi_j}$.
-\EndFor
-\State
-\State // Estimation (Use two sets $X,Y$ as an example)
-\State Compute $\hat{P}_b = \frac{1}{k}\sum_{j=1}^k 1 \left\lbrace  e_{X,b,\pi_j } = e_{Y,b,\pi_j } \right\rbrace$
-\State Estimate the resemblance by $\hat{R}_b = \frac{\hat{P}_b-F_{\text{pos}}}{1-F_{\text{neg}}}$
-\end{algorithmic}
-\end{algorithm}
-
-This is not a very complicated algorithm, yet it's not immediately apparent why it works. First, let us observe that while the frequency count of an item may be underestimated, it is never overestimated. Hence, the error is one-sided and can only result in false positives; not false negatives. Another key observation is that the true frequency count of an item is at least $c$ and at most $c + \Delta$. It follows that when an entry is removed from $D$, its true frequency count is at most $c + \Delta \leq b_{current} \leq \varepsilon \cdot n$. Hence, it is guaranteed that the loss of accuracy, which results from removing an entry, is within the acceptable margin of error.
-
-\textsc{LossyCounting} is effectively an algorithm with two frequency thresholds; $s$, above which lie the items we want to identify and $\varepsilon$, below which we don't bother to maintain accurate frequency counts.
-
-\subsection{Itemset Version}
-We now turn our focus to data stream consisting of sets of items, which we will refer to as \textit{transactions}. In this setting, entries in $D$ have the form $(set, c, \Delta)$. The goal is to identify subsets of $\mathcal{I}$ that occur frequently within the transactions. In particular, this means that we have to maintain frequency counts not only for unique transactions, but also the subsets of the transactions. Clearly, the number of subsets to track can be exponential in the size of $\mathcal{I}$ and certain counter-measures are required to address this problem.
-
-The first counter-measure exploits the fact that subsets of frequent itemsets are also frequent. Conversely, supersets of infrequent itemsets are also infrequent. This is the so called \textit{downward-closure property} of support and it allows us to safely ignore all supersets of itemsets, which have a relative frequency below $\varepsilon$.
-
-The second counter-measure involves reading the stream into a memory buffer and process the buckets in batches of size $\beta$. Subsets are only added to $D$ if their frequency count within the batch is at least $\beta$. This modified insertion method prevents infrequent subsets from entering $D$, if it is clear that they will be removed at a later pruning phase.
-
-Manku and Motwani separated their itemset version of \textsc{LossyCounting} into three modules:
-\begin{itemize}
-\item A \textsc{Buffer} module that reads the transactions into main memory.
-\item A \textsc{SetGen} module that generates subsets of the current batch and tracks their frequencies.
-\item A \textsc{Trie} module that maintains a compact representation of $D$ on disk.
-\end{itemize}
-
-In their paper, the authors provide a rather detailed description of their implementation. They discuss and justify certain design decisions, the \textsc{Trie} data structure and how to optimize the algorithm using UNIX system calls. They also perform empirical tests to compare its performance to that of \textsc{Apriori}, which is a well known algorithm for association rule learning. Their results show that \textsc{LossyCounting} compares favourably, both in terms of speed and memory consumption.
 
 \section{Conclusions}
-We have explored four algorithms, all of which approximate the set of items exceeding a certain frequency threshold $s$, with a single pass over the data and  using memory that is sublinear in the size of the data stream and the item universe $\mathcal{I}$. The algorithms vary in their implementation complexity, the amount of memory they use and the guarantees that they make about the quality of their output. 
 
-Only one of those algorithms, \textsc{LossyCounting}, has been extended to identify frequent itemsets in a stream of transactions. It was the first algorithm capable of doing so in a single pass while providing user-specified error guarantees. Its simplicity and efficiency are quite appealing. 
-
-Certain variations of \textsc{LossyCounting} have appeared since it was first described over a decade ago. Those include Probabilistic Lossy Counting \citep{dimitropoulos2008probabilistic} and Mnemonic Lossy Counting \citep{rong2010mnemonic}. Due to its usefulness in association rule learning, it is covered in prominent texts on Data Mining, such as the one by Han and Kamber.
 
 \bibliographystyle{unsrt}
 \bibliography{Bibliography}
