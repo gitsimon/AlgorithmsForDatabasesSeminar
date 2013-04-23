@@ -32,7 +32,7 @@ With Big Data, most problems emphasis shifts from computational complexity to me
 Many today's applications are faced with very large datasets. A common task is to find \emph{similarity} between two or several such sets. There are lots of problem solutions which use a mapping to sets of properties and then do a \emph{similarity search} on them. Fast (approximative) algorithms for this search enable improvements of many well-known algorithms, e.g. of machine learning and computer vision.
 
 \subsection{Notation and Terminology}
-We denote by $\Omega$ the set of all possible items of the sets $S_i \subseteq \Omega$, $i = 1 \text{ to } n$. $\left| \Omega \right| = D$ is always large (e.g. $D=2^{64}$) and would require prohibitive storage. Often we consider only two sets $S_1 = X$, $S_2 = Y$. The normalized similarity between $X$ and $Y$, known as \emph{resemblance} or \emph{Jaccard similarity}, denoted by R, is
+We denote by $\Omega$ the set of all possible items of the sets $S_i \subseteq \Omega$, $i = 1 \text{ to } n$. $\left| \Omega \right| = D$ is always large (e.g. $D=2^{64}$). Often we consider only two sets $S_1 = X$, $S_2 = Y$. The normalized similarity between $X$ and $Y$, known as \emph{resemblance} or \emph{Jaccard similarity}, denoted by R, is
 \[
 R=\frac{\left| X \cap Y \right|}{\left| X \cup Y \right|} = \frac{a}{\left| X \right| + \left| Y \right| -a}, \qquad \text{where } a=\left| X \cap Y \right|
 \]
@@ -65,7 +65,32 @@ Clearly, the number of possible shingles and therefore $D$ is huge. Assume $10^5
 
 \subsection{Original Minwise Hashing}
 
-\section{b-bit k-permutation Minwise Hashing}
+A working approximative solution to this problem was described by Broder and his colleagues \citep{Broder:1998,BroderGMZ97}. Their algorithm is based on the following observation:
+
+Suppose a random permutation $\pi$ is performed on $\Omega$,
+\[
+\pi:\Omega \longrightarrow\ \Omega, \qquad \text{where } \Omega = \{0,1,\ldots,D-1\}.\footnote{We assume there is a perfect hash function applied to the original domain to always give as $\Omega = \{0,1,\ldots,D-1\}$}
+\]
+
+An elementary probability argument shows that for two sets $X,Y \subseteq \Omega$
+\begin{equation}
+\Pr [\min(\pi(X))=\min(\pi(Y))]=\frac{\left| X \cap Y \right|}{\left| X \cup Y \right|}=R.
+\end{equation}
+We can now build an unbiased estimator $\hat{R}_M$ of $R$ with $k$ minwise independent permutations, $\pi_1,\pi_2,\ldots,\pi_k$:
+\begin{equation}
+\hat{R}_M=\frac{1}{k}\sum_{j=1}^k 1 \left\lbrace \min(\pi_j(X))=\min(\pi_j(Y)) \right\rbrace,
+\end{equation}
+\begin{equation}\label{eq:minWiseVariance}
+Var(\hat{R}_M)=\frac{1}{k}R(1-R).
+\end{equation}
+We later refer to $\min(\pi_j(S_i))$ as \textbf{sample} and to $k$ as \textbf{sample size}. To store a \textbf{sample} may require e.g., $64$ bits. Note that the minimum function $\min(\cdot)$ needs $O(D)$ time and constant space and can be precomputed for each set $S_i$ and permutation $\pi_j$.\footnote{A detailed runtime analysis will follow for the improved algorithm in section \vref{sec:b-bitMinwiseHashing}}
+
+Many applications, especially duplicate detection, are interested in detecting somewhat high similarity, thus an approximation seems reasonable. From equation \vref{eq:minWiseVariance} we learn, that the accuracy can be adjusted by choosing the \textbf{sample size} appropriately.
+
+However, finding duplicates out of $m$ objects, e.g. web pages, still needs $O(m^2)$ comparisons. There are number of approaches to deal with that problem, but we will no discuss it here and refer to \citep{BroderGMZ97,STOC02*380}.
+
+
+\section{b-bit k-permutation Minwise Hashing}\label{sec:b-bitMinwiseHashing}
 
 \begin{algorithm}[H]
 \caption{\textsc{b-bit Minwise Hashing} algorithm, applied to estimating pairwise resemblances in a collection of $n$ sets.}
