@@ -12,31 +12,41 @@
 \usepackage{natbib}
 \usepackage{tabulary}
 \usepackage{caption}
+\usepackage{framed}
 \usepackage[english]{varioref} %automatische Anpassung von Referenzen
+\labelformat{equation}{equation~(#1)} %make references to equations like (1)
 \usepackage{float} % bewirkt, dass Option [H] für float-Umgebungen von Latex umgesetzt wird
+
+\DeclareMathOperator{\Var}{Var}
+\DeclareMathOperator{\E}{E}
 
 \renewcommand{\algorithmicrequire}{\textbf{Input:}}
 \renewcommand{\algorithmicensure}{\textbf{Output:}}
 
 \newtheorem{mydef}{Definition}
 \newtheorem{mylemma}{Lemma}
+\newtheorem{mytheorem}{Theorem}
 
 \begin{document} 
 \maketitle
 
 \section{Introduction}
-This report is written for the seminar titled ``Algorithms for Database Systems" at ETH Z\"{u}rich. The seminar participants read and summarize various papers, which treat solving problems in the context of Big Data, which is this year's topic.
+This report is written for the seminar titled ``Algorithms for Database Systems" at ETH Z\"{u}rich. The seminar participants read and summarize various papers, which treat solving problems in the context of Big Data, which is this year's topic. This report summarizes and explains the core concepts of \citep{LiK11} and \citep{LiOwZhang12}.
 
 With Big Data, most problems emphasis shifts from computational complexity to memory space usage considerations. Typically, the runtime is dominated by the time needed for memory accesses, hence optimizing the memory footprint already improves our algorithms significantly. 
 
 Many today's applications are faced with very large datasets. A common task is to find \emph{similarity} between two or several such sets. There are lots of problem solutions which use a mapping to sets of properties and then do a \emph{similarity search} on them. Fast (approximative) algorithms for this search enable improvements of many well-known algorithms, e.g. of machine learning and computer vision.
 
-\subsection{Notation and Terminology}
-We denote by $\Omega$ the set of all possible items of the sets $S_i \subseteq \Omega$, $i = 1 \text{ to } n$. $\left| \Omega \right| = D$ is always large (e.g. $D=2^{64}$). Often we consider only two sets $S_1 = X$, $S_2 = Y$. The normalized similarity between $X$ and $Y$, known as \emph{resemblance} or \emph{Jaccard similarity}, denoted by R, is
-\[
+\subsection{Similarity}
+We denote by $\Omega$ the set of all possible items of the sets $S_i \subseteq \Omega$, $i = 1 \text{ to } n$. $\left| \Omega \right| = D$ is always large (e.g. $D=2^{64}$). Often we consider only two sets $S_1 = X$, $S_2 = Y$.
+\begin{framed}
+\begin{mydef}\label{def:jaccard}
+The normalized similarity between two sets $X$ and $Y$, known as \emph{resemblance} or \emph{Jaccard similarity}, denoted by R, is
+\begin{equation}
 R=\frac{\left| X \cap Y \right|}{\left| X \cup Y \right|} = \frac{a}{\left| X \right| + \left| Y \right| -a}, \qquad \text{where } a=\left| X \cap Y \right|
-\]
-We use $\Pr[\cdot]$ as a shorthand for the \emph{Probability} of some event.
+\end{equation}
+\end{mydef}
+\end{framed}
 
 \subsection{Motivating Example}
 Consider a web search provider, which want to present a result list of web pages without duplicates. To achieve that, for every pair of web pages, we drop one of them, if they are textually very similar. This is the case when their \emph{resemblance} $R$ is greater than some threshold $R_0$. But to be able to use the \emph{resemblance} as a measurement, we have to map each page to a set. One could imagine to define this mapping from the page to the set of all words occurring on the page. As in several studies \citep{Broder:1998,BroderGMZ97} we will instead map a page to a set of \emph{shingles}. A shingle is a string of $w$ contiguous words, and we include a \emph{shingle} in our result set if the \emph{shingle} occurs on the page (in the same order). Typically we choose $w = 5$. Figure \vref{fig:shingle} shows an exemplary mapping.
@@ -69,32 +79,93 @@ A working approximative solution to this problem was described by Broder and his
 
 Suppose a random permutation $\pi$ is performed on $\Omega$,
 \[
-\pi:\Omega \longrightarrow\ \Omega, \qquad \text{where } \Omega = \{0,1,\ldots,D-1\}.\footnote{We assume there is a perfect hash function applied to the original domain to always give as $\Omega = \{0,1,\ldots,D-1\}$}
+\pi:\Omega \longrightarrow\ \Omega, \qquad \text{where } \Omega = \{0,1,\ldots,D-1\}.\footnote{We assume there is a perfect hash function applied to the elements of the original domain which always gives us $\Omega = \{0,1,\ldots,D-1\}$. Note that in the paper \citep{LiK11}, the hash function is applied after the permutation and the minimum-function, but it is simpler to understand this way.}
 \]
 
-An elementary probability argument shows that for two sets $X,Y \subseteq \Omega$
-\begin{equation}
-\Pr [\min(\pi(X))=\min(\pi(Y))]=\frac{\left| X \cap Y \right|}{\left| X \cup Y \right|}=R.
+With $\pi(S_i)$ we denote the application of the permutation $\pi$ to every element of $S_i$. A key role play the minimums of the permuted sets:
+\[
+e_{S_i,\pi}=min(\pi(S_i))
+\]
+
+We use $\Pr[\cdot]$ as a shorthand for the \emph{Probability} of some event. An elementary probability argument shows that for two sets $X,Y \subseteq \Omega$
+\begin{equation}\label{eq:minwiseOri}
+\Pr[e_{X,\pi}=e_{Y,\pi}]=\Pr [\min(\pi(X))=\min(\pi(Y))]=\frac{\left| X \cap Y \right|}{\left| X \cup Y \right|}=R.
 \end{equation}
+
 We can now build an unbiased estimator $\hat{R}_M$ of $R$ with $k$ minwise independent permutations, $\pi_1,\pi_2,\ldots,\pi_k$:
 \begin{equation}
-\hat{R}_M=\frac{1}{k}\sum_{j=1}^k 1 \left\lbrace \min(\pi_j(X))=\min(\pi_j(Y)) \right\rbrace,
+\hat{R}_M=\frac{1}{k}\sum_{j=1}^k 1 \left\lbrace e_{X,\pi_j}=e_{Y,\pi_j} \right\rbrace,
 \end{equation}
 \begin{equation}\label{eq:minWiseVariance}
 Var(\hat{R}_M)=\frac{1}{k}R(1-R).
 \end{equation}
-We later refer to $\min(\pi_j(S_i))$ as \textbf{sample} and to $k$ as \textbf{sample size}. To store a \textbf{sample} may require e.g., $64$ bits. Note that the minimum function $\min(\cdot)$ needs $O(D)$ time and constant space and can be precomputed for each set $S_i$ and permutation $\pi_j$.\footnote{A detailed runtime analysis will follow for the improved algorithm in section \vref{sec:b-bitMinwiseHashing}}
+We later refer to $e_{S_i,\pi_j}$ as a \textbf{sample} and to $k$ as the \textbf{sample size}. To store a \textbf{sample} may require e.g., $64$ bits. Note that the minimum function $\min(\cdot)$ needs $O(D)$ time and constant space and can be precomputed for each set $S_i$ and permutation $\pi_j$.\footnote{A detailed runtime analysis will follow for the improved algorithm in section \vref{sec:b-bitMinwiseHashing}}
 
 Many applications, especially duplicate detection, are interested in detecting somewhat high similarity, thus an approximation seems reasonable. From equation \vref{eq:minWiseVariance} we learn, that the accuracy can be adjusted by choosing the \textbf{sample size} appropriately.
 
-However, finding duplicates out of $m$ objects, e.g. web pages, still needs $O(m^2)$ comparisons. There are number of approaches to deal with that problem, but we will no discuss it here and refer to \citep{BroderGMZ97,STOC02*380}.
+However, finding duplicates out of $m$ objects, e.g. web pages, still needs $O(m^2)$ comparisons. There are number of approaches to deal with that problem, but we will not discuss it here and refer to \citep{BroderGMZ97,STOC02*380}.
 
 
 \section{b-bit k-permutation Minwise Hashing}\label{sec:b-bitMinwiseHashing}
 
+We will present an algorithm which improves on the storage requirements of the original \emph{Minwise Hashing}. The idea is to reduce the size of each \textbf{sample} by only taking $b$ bits of it, as opposed to, e.g. $64$ bits. Intuitively, this will increase the estimation variance $Var(\hat{R}_M)$, at the same \textbf{sample size} $k$. To maintain the same accuracy, we have to increase $k$. One can show, if the resemblance is not too small, we will not have to increase $k$ much and in total use less storage.
+
+For example, when $b=1$ and $R=0.5$, the estimation variance will increase at most by a factor of $3$. To keep the same accuracy, we have to increase the \textbf{sample size} by a factor of $3$. If we before stored each minimum $\min(\pi_j(S_i))$ using $64$ bits, the improvement with $b=1$ is $64/3=21.3$.
+
+Consider again two sets $X,Y \subseteq \Omega$, on which a random permutation $\pi: \Omega \longrightarrow \Omega$ is applied. We extend our notation with
+\[
+e_{X,b,\pi}=b \text{ lowest bits of } \min(\pi(X))
+\]
+\[
+e_{Y,b,\pi}=b \text{ lowest bits of } \min(\pi(Y))
+\]
+\begin{framed}
+\begin{mytheorem} \label{the:b-bitMinwiseHashing}
+Assume $D$ is large.
+\begin{equation}\label{eq:minwiseB-bit}
+P_b=\Pr[1\left\lbrace e_{X,b,\pi}=e_{Y,b,\pi}\right\rbrace]=C_{1,b}+(1-C_{2,b})R
+\end{equation}
+\begin{equation}
+r_X=\frac{|X|}{D}, \qquad r_Y=\frac{|Y|}{D}
+\end{equation}
+\begin{equation}
+\begin{split}
+C_{1,b}=A_{X,b}\frac{r_Y}{r_X+r_Y}+A_{Y,b}\frac{r_X}{r_X+r_Y},\\
+C_{2,b}=A_{X,b}\frac{r_X}{r_X+r_Y}+A_{Y,b}\frac{r_Y}{r_X+r_Y}
+\end{split}
+\end{equation}
+\begin{equation}
+A_{X,b}=\frac{r_X[1-r_X]^{2^b-1}}{1-[1-r_X]^{2^b}}, \qquad A_{Y,b}=\frac{r_Y[1-r_Y]^{2^b-1}}{1-[1-r_Y]^{2^b}}
+\end{equation}
+\end{mytheorem}
+\end{framed}
+
+The intuition for the additional terms $C_{1,b}$ and $C_{2,b}$ in \vref{eq:minwiseB-bit} compared to \vref{eq:minwiseOri} is that we have to account for a type of "false positive": When two minima agree on their last $b$ bits, $e_{X,b,\pi}=e_{Y,b,\pi}$, it's still possible that their are different, $e_{X,\pi}\neq e_{Y,\pi}$. Thus even when $R=0$, the collision probability $P_b$ is not zero, but rather $C_{1,b}$. This makes the derivation much more complicated. A proof of Theorem \vref{the:b-bitMinwiseHashing} can be found in the appendix of \citep{LiK09}.
+
+Even though $D$ is assumed to be large, experiments show that even for $D=20$ the absolute error caused by using \vref{eq:minwiseB-bit} ist $< 0.01$.
+
+\subsection{The Estimator}
+
+From \vref{eq:minwiseB-bit} of Theorem \vref{the:b-bitMinwiseHashing} we derive the estimator $\hat{R}_b$ for $R$:
+\begin{equation}
+\hat{R}_b=\frac{\hat{P}_b-C_{1,b}}{1-C_{2,b}}
+\end{equation}
+\begin{equation}
+\hat{P}_b = \frac{1}{k}\sum_{j=1}^k 1 \left\lbrace  e_{X,b,\pi_j } = e_{Y,b,\pi_j } \right\rbrace
+\end{equation}
+
+This estimator is unbiased, i.e. $\E[\hat{R}_b]=\E[R]$. Furthermore, the variance of $\hat{R}_M$ converges to the variance of $\hat{R}_b$, i.e.
+\begin{equation}
+\lim_{b\rightarrow\inf}\Var\left(\hat{R}_b\right)=\frac{R(1-R)}{k}=\Var\left(\hat{R}_M\right)
+\end{equation}
+
+\subsection{Algorithm}
+
+Based on the theoretical results, Algorithm \vref{alg:minwiseHashing} presents the procedure of $b$-bit ($k$-permutation) hashing.
+
 \begin{algorithm}[H]
 \caption{\textsc{b-bit Minwise Hashing} algorithm, applied to estimating pairwise resemblances in a collection of $n$ sets.}
-\label{MinwiseHashingAlg}
+\label{alg:minwiseHashing}
 \begin{algorithmic}
 \Require Sets $S_i \subseteq \Omega = \{0,1,\ldots,D-1\}, i = 1 \text{ to } n$. \Comment $D = \left| \Omega \right|$
 \Ensure Estimated resemblance $\hat{R}_b$
@@ -106,15 +177,31 @@ However, finding duplicates out of $m$ objects, e.g. web pages, still needs $O(m
 \State
 \State // Estimation (Use two sets $X,Y$ as an example)
 \State Compute $\hat{P}_b = \frac{1}{k}\sum_{j=1}^k 1 \left\lbrace  e_{X,b,\pi_j } = e_{Y,b,\pi_j } \right\rbrace$
-\State Estimate the resemblance by $\hat{R}_b = \frac{\hat{P}_b-F_{\text{pos}}}{1-F_{\text{neg}}}$
+\State Estimate the resemblance by $\hat{R}_b = \frac{\hat{P}_b-C_{1,b}}{1-C_{2,b}}$, where $C_{1,b}$ and $C_{2,b}$ are from Theorem \vref{the:b-bitMinwiseHashing}
 \end{algorithmic}
 \end{algorithm}
 
 
-\subsection{Fundamental Results}
+\subsection{Deriving Hamming Distance}
 
-\subsection{Experiments}
+Another well-known measurement for the similarity is the \emph{hamming distance}. For the purpose of calculating the \emph{hamming distance} between two sets $X,Y \subseteq \Omega = \{0,1,\ldots,D-1\}$, the sets are first mapped to a $D$-dimensional binary vector $x,y$ resp.:
+\begin{framed}
+\begin{mydef}\label{def:hamming}
+Let vector $x,y \in \left\lbrace 0,1 \right\rbrace ^D, \quad x_t = 1\left\lbrace t \in X \right\rbrace, y_t = 1\left\lbrace t \in Y \right\rbrace$. The \emph{hamming distance} between $X$ and $Y$ is
+\begin{equation}
+H=\sum_{i=0}^{D-1}\left[ x_i \neq y_i \right]=|X \cup Y|-|X\cap Y|=|X|+|Y|-2a
+\end{equation}
+\end{mydef}
+\end{framed}
 
+If we reformulate \vref{def:jaccard} as
+\begin{equation}
+a=\frac{R}{1+R}(|X|+|Y|),
+\end{equation}
+we can use the b-bit minwise hashing algorithm to estimate $H$ with
+\begin{equation}
+\hat{H}_b=|X|+|Y|-2\frac{\hat{R}_b}{1+\hat{R}_b}(|X|+|Y|)=\frac{1-\hat{R}_b}{1+\hat{R}_b}(|X|+|Y|)
+\end{equation}
 
 %\begin{center}
 \begin{table}
