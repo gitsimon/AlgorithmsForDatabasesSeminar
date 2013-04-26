@@ -4,6 +4,7 @@
 \title{Set similarity with b-bit k-permutation Minwise Hashing - DRAFT}
 
 \usepackage[parfill]{parskip}
+\usepackage{tikz} % for drawing advanced matrices
 \usepackage{amsmath}
 \usepackage{amsthm}
 \usepackage{algorithm}
@@ -16,6 +17,8 @@
 \usepackage[english]{varioref} %automatische Anpassung von Referenzen
 \labelformat{equation}{equation~(#1)} %make references to equations like (1)
 \usepackage{float} % bewirkt, dass Option [H] für float-Umgebungen von Latex umgesetzt wird
+
+\usetikzlibrary{matrix,decorations.pathreplacing,backgrounds,positioning}
 
 \DeclareMathOperator{\Var}{Var}
 \DeclareMathOperator{\E}{E}
@@ -36,6 +39,8 @@ This report is written for the seminar titled ``Algorithms for Database Systems"
 With Big Data, most problems emphasis shifts from computational complexity to memory space usage considerations. Typically, the runtime is dominated by the time needed for memory accesses, hence optimizing the memory footprint already improves our algorithms significantly. 
 
 Many today's applications are faced with very large datasets. A common task is to find \emph{similarity} between two or several such sets. There are lots of problem solutions which use a mapping to sets of properties and then do a \emph{similarity search} on them. Fast (approximative) algorithms for this search enable improvements of many well-known algorithms, e.g. of machine learning and computer vision.
+
+We start by explaining the original \emph{Minwise Hashing}, which nicely presents the basic idea behind all algorithms. We move on to a major improvement, the \emph{b-bit k-permutation Minwise Hashing}, which reduces storage at the cost of more iterations in the algorithm and is a generalization of the concept. We then present \emph{One Permutation Hashing}, which manages surprising accuracy with just one run.
 
 \subsection{Similarity}
 We denote by $\Omega$ the set of all possible items of the sets $S_i \subseteq \Omega$, $i = 1 \text{ to } n$. $\left| \Omega \right| = D$ is always large (e.g. $D=2^{64}$). Often we consider only two sets $S_1 = X$, $S_2 = Y$.
@@ -82,7 +87,7 @@ Suppose a random permutation $\pi$ is performed on $\Omega$,
 \pi:\Omega \longrightarrow\ \Omega, \qquad \text{where } \Omega = \{0,1,\ldots,D-1\}.\footnote{We assume there is a perfect hash function applied to the elements of the original domain which always gives us $\Omega = \{0,1,\ldots,D-1\}$. Note that in the paper \citep{LiK11}, the hash function is applied after the permutation and the minimum-function, but it is simpler to understand this way.}
 \]
 
-With $\pi(S_i)$ we denote the application of the permutation $\pi$ to every element of $S_i$. A key role play the minimums of the permuted sets:
+With $\pi(S_i)$ we denote the application of the permutation $\pi$ to every element of $S_i$. A key role play the minima of the permuted sets:
 \[
 e_{S_i,\pi}=min(\pi(S_i))
 \]
@@ -182,12 +187,12 @@ Based on the theoretical results, Algorithm \vref{alg:minwiseHashing} presents t
 \end{algorithm}
 
 
-\subsection{Deriving Hamming Distance}
+\subsection{Deriving the Hamming Distance} \label{sec:hammingDistance}
 
 Another well-known measurement for the similarity is the \emph{hamming distance}. For the purpose of calculating the \emph{hamming distance} between two sets $X,Y \subseteq \Omega = \{0,1,\ldots,D-1\}$, the sets are first mapped to a $D$-dimensional binary vector $x,y$ resp.:
 \begin{framed}
 \begin{mydef}\label{def:hamming}
-Let vector $x,y \in \left\lbrace 0,1 \right\rbrace ^D, \quad x_t = 1\left\lbrace t \in X \right\rbrace, y_t = 1\left\lbrace t \in Y \right\rbrace$. The \emph{hamming distance} between $X$ and $Y$ is
+Let vector $x,y \in \left\lbrace 0,1 \right\rbrace ^D, \, x_t = 1\left\lbrace t \in X \right\rbrace, y_t = 1\left\lbrace t \in Y \right\rbrace$. The \emph{hamming distance} between $X$ and $Y$ is
 \begin{equation}
 H=\sum_{i=0}^{D-1}\left[ x_i \neq y_i \right]=|X \cup Y|-|X\cap Y|=|X|+|Y|-2a
 \end{equation}
@@ -202,6 +207,15 @@ we can use the b-bit minwise hashing algorithm to estimate $H$ with
 \begin{equation}
 \hat{H}_b=|X|+|Y|-2\frac{\hat{R}_b}{1+\hat{R}_b}(|X|+|Y|)=\frac{1-\hat{R}_b}{1+\hat{R}_b}(|X|+|Y|)
 \end{equation}
+
+Experiments show that this approach is significantly faster than standard methods for computing the \emph{hamming distance}.
+
+\subsection{Drawbacks}
+
+The major problem of \emph{b-bit Minwise Hashing} is the costly preprocessing. Consider an application in machine learning, where the sets $S_i$ represents some properties of an object (e.g. a document or an image). Often one wants to add objects dynamically at runtime and compare them to other objects by finding the \emph{resemblance} of their properties. Finding the $k$ minima under the permutations may take too long, i.e. uses $O(k|S_i|)$ to $O(kD)$ time per set.
+In general, the costly preprocessing may cause problems in user-facing applications, where the testing efficiency for new data objects is crucial. There is the need for a entirely fast algorithm to keep this applications responsive.
+
+Another drawback is that storing $k$ permutations is sometimes impractical. If e.g. $D=10^9$, one permutation vector uses $4$GB, which is still possible. But the space needed to store e.g. $k=500$ permutation vectors (each of length $D$), is not tolerable.
 
 %\begin{center}
 \begin{table}
@@ -228,8 +242,89 @@ we can use the b-bit minwise hashing algorithm to estimate $H$ with
 \end{table}
 %\end{center}
 
-\section{Comparison with Hamming Distance Algorithms}
 
+
+
+\section{One Permutation Hashing}
+
+This algorithm is directly motivated by the optimization potential of the standard \emph{minwise hashing} practice: intuitively, it ought to be "wasteful" in that all elements in a set are permuted, scanned but only the minimum will be used. As the name already suggests, we reduce the preprocessing step to only one permutation.
+
+As in section \vref{sec:hammingDistance} we will represent sets $S_i \subseteq \Omega$ as vectors $s_i \in \left\lbrace 0,1 \right\rbrace ^D, \, (s_i)_t = 1\left\lbrace t \in S_i \right\rbrace$. We will setup a running example with $X,Y,Z \subseteq \Omega = \left\lbrace 0,1,\cdots,15\right\rbrace$. Let
+\[
+X=\left\lbrace 2,4,7,13\right\rbrace, \quad Y=\left\lbrace 0,3,6,13\right\rbrace, Z=\quad \left\lbrace 0,1,10,12\right\rbrace.
+\]
+Now we build up a data matrix where the rows are equal to the vector representations of the permuted sets:
+
+\begin{equation}
+\begin{tikzpicture}[baseline = (M.center),% center with respect to the matrix center
+        every left delimiter/.style={xshift=1ex},%tighter delimiter spacing
+        every right delimiter/.style={xshift=-1ex}]
+\matrix (M) [matrix of math nodes,left delimiter={(},right delimiter={)} 
+        ]{ 
+0&0&1&0&1&0&0&1&0&0&0&0&0&1&0&0\\
+1&0&0&1&0&0&1&0&0&0&0&0&0&1&0&0\\
+1&1&0&0&0&0&0&0&0&0&1&0&1&0&0&0\\
+};
+\node[anchor=south east] (cornernode) at (M-1-1.north west) {Sets: \qquad \qquad}; %Position this more precisely if desired
+\foreach[count=\xi] \x in {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15}{ %\xi is the counter \x is the value
+\node[font=\scriptsize] (M-0-\xi) at (cornernode -| M-1-\xi) {\x}; % Gets the top row 
+}
+
+\foreach[count=\xi] \x in {$\pi(X)$:,$\pi(Y)$:,$\pi(Z)$:}{ %\xi is the counter \x is the value
+\node (M-\xi-0) at (cornernode |- M-\xi-1) {\x}; %Gets the left most column
+}
+
+\draw[decoration=brace,decorate] (M-0-1.north west) -- (M-0-16.north east)%
+ node[midway,above] {$\Omega$};
+
+\end{tikzpicture}
+\end{equation}
+
+The idea is now to divide the columns evenly into $k$ (here $k=4$) bins (parts), and take the minimum in each bin. Because we only compare them within one bin, we can also re-index the elements to use the smallest possible representation of the minima:
+
+\begin{equation}
+\begin{tikzpicture}[baseline = (M.center),% center with respect to the matrix center
+        every left delimiter/.style={xshift=1ex},%tighter delimiter spacing
+        every right delimiter/.style={xshift=-1ex}]
+\matrix (M) [matrix of math nodes,left delimiter={(},right delimiter={)} 
+        ]{ 
+0&0&1&0&1&0&0&1&0&0&0&0&0&1&0&0\\
+1&0&0&1&0&0&1&0&0&0&0&0&0&1&0&0\\
+1&1&0&0&0&0&0&0&0&0&1&0&1&0&0&0\\
+};
+\node[anchor=south east] (cornernode) at (M-1-1.north west) {Sets: \qquad \qquad}; %Position this more precisely if desired
+\foreach[count=\xi] \x in {0,1,2,3,0,1,2,3,0,1,2,3,0,1,2,3}{ %\xi is the counter \x is the value
+\node[font=\scriptsize] (M-0-\xi) at (cornernode -| M-1-\xi) {\x}; % Gets the top row 
+}
+\foreach[count=\xi] \x in {$\pi(X)$:,$\pi(Y)$:,$\pi(Z)$:}{ %\xi is the counter \x is the value
+\node (M-\xi-0) at (cornernode |- M-\xi-1) {\x}; %Gets the left most column
+}
+\node[below left = 0.1pt of M-3-3.south] {bin $1$};
+\node[below left = 0.1pt of M-3-7.south] {bin $2$};
+\node[below left = 0.1pt of M-3-11.south] {bin $3$};
+\node[below left = 0.1pt of M-3-15.south] {bin $4$};
+
+\draw[decoration=brace,decorate] (M-0-1.north west) -- (M-0-16.north east)%
+ node[midway,above] {$\Omega$};
+
+\begin{scope}[on background layer]
+\draw [fill=black!10] (M-1-1.north west) rectangle (M-3-4.south east);
+\draw [fill=black!10] (M-1-5.north west) rectangle (M-3-8.south east);
+\draw [fill=black!10] (M-1-9.north west) rectangle (M-3-12.south east);
+\draw [fill=black!10] (M-1-13.north west) rectangle (M-3-16.south east);
+\end{scope}
+\end{tikzpicture}
+\end{equation}
+
+The minima-vectors $m(\cdot)$ are
+\begin{equation}
+\begin{split}
+m(\pi(X))=[2,0,*,1],\\
+m(\pi(Y))=[0,2,*,1],\\
+m(\pi(Z))=[0,*,2,0],\\
+\end{split}
+\end{equation}
+where '$*$' denotes an empty bin.
 
 \section{Conclusions}
 
