@@ -15,7 +15,7 @@
 \usepackage{caption}
 \usepackage{framed}
 \usepackage[english]{varioref} %automatische Anpassung von Referenzen
-\labelformat{equation}{equation~(#1)} %make references to equations like (1)
+\labelformat{equation}{(#1)} %make references to equations like (1)
 \usepackage{float} % bewirkt, dass Option [H] für float-Umgebungen von Latex umgesetzt wird
 
 \usetikzlibrary{matrix,decorations.pathreplacing,backgrounds,positioning}
@@ -40,10 +40,11 @@ With Big Data, most problems emphasis shifts from computational complexity to me
 
 Many today's applications are faced with very large datasets. A common task is to find \emph{similarity} between two or several such sets. There are lots of problem solutions which use a mapping to sets of properties and then do a \emph{similarity search} on them. Fast (approximative) algorithms for this search enable improvements of many well-known algorithms, e.g. of machine learning and computer vision.
 
-We start by explaining the original \emph{Minwise Hashing}, which nicely presents the basic idea behind all algorithms. We move on to a major improvement, the \emph{b-bit k-permutation Minwise Hashing}, which reduces storage at the cost of more iterations in the algorithm and is a generalization of the concept. We then present \emph{One Permutation Hashing}, which manages surprising accuracy with just one run.
+We start by explaining the original \emph{Minwise Hashing}, which nicely presents the basic idea behind all algorithms. We move on to a major improvement, the \emph{b-bit k-permutation Minwise Hashing}, which reduces storage at the cost of more iterations in the algorithm and is a generalization of the concept. We then present \emph{One Permutation Hashing}, which achieves surprising accuracy using only one permutation.
 
 \subsection{Similarity}
 We denote by $\Omega$ the set of all possible items of the sets $S_i \subseteq \Omega$, $i = 1 \text{ to } n$. $\left| \Omega \right| = D$ is always large (e.g. $D=2^{64}$). Often we consider only two sets $S_1 = X$, $S_2 = Y$.
+
 \begin{framed}
 \begin{mydef}\label{def:jaccard}
 The normalized similarity between two sets $X$ and $Y$, known as \emph{resemblance} or \emph{Jaccard similarity}, denoted by R, is
@@ -349,7 +350,7 @@ To derive the \emph{resemblance} between two sets, e.g. $X,Y$, we introduce two 
 \end{split}
 \end{equation}
 where $I_{emp,j}$ and $I_{mat,j}$ are defined for the $j$-th bin, as
-\begin{equation}
+\begin{equation} \label{eq:defEmpMat}
 \begin{split}
   I_{emp,j} &=\begin{cases}
     1 & \text{if both $\pi(X)$ and $\pi(Y)$ are empty in the $j$-th bin} \\
@@ -367,7 +368,61 @@ In our example we have $N_{emp}=1$ and $N_{mat}=1$.
 
 \subsection{The Estimator}
 
-We use the notations $a=|X \cap Y|$ and $f=|X \cup Y|=|X|+|Y|-a$.
+Recall the notations $a=|X \cap Y|$ and $f=|X \cup Y|=|X|+|Y|-a$. We formulate the estimator as 
+\begin{framed}
+\begin{mylemma} \label{lem:onePermutationHashing}
+The \emph{resemblance} estimator
+\begin{equation}
+\hat{R}_{mat}=\frac{N_{mat}}{k-N_{emp}}
+\end{equation}
+is unbiased, i.e.
+\begin{equation}
+\E\left[\hat{R}_{mat}\right]=R.
+\end{equation}
+\end{mylemma}
+\end{framed}
+Because it is a bit surprising that the estimator is unbiased, we give a
+\begin{proof}[Proof of Lemma \vref{lem:onePermutationHashing}]
+Because we assume that the sets and thus the data vectors are not completely empty, it holds
+\begin{equation*}
+k-N_{emp} > 0 \Rightarrow P\left[ k-N_{emp}>0 \right]=1, 
+\end{equation*}
+hence we get rid of division-by-zero problems and $m>0$ in \vref{eq:imat2} is always true.
+From the definitions in \vref{eq:defEmpMat} follows
+\begin{equation}\label{eq:empmat}
+I_{emp,j} = 1 \Rightarrow I_{mat,j}=0,
+\end{equation}
+\begin{equation}\label{eq:imat1}
+\E \left[ I_{mat,j} \middle\vert I_{emp,j} = 0 \right] = R,
+\end{equation}
+\begin{equation}\label{eq:imat2}
+\text{for } m > 0: \quad \E \left[ I_{mat,j} \middle\vert k-N_{emp}=m \right] = \frac{m}{k}R,
+\end{equation}
+and we derive
+\begin{equation}\label{eq:nmat}
+\begin{split}
+\E \left[ N_{mat} \middle\vert k-N_{emp}=m \right] &\overset{\vref{eq:empmat}}{=} \sum_{j=1}^{k-N_{emp}} \E \left[ I_{mat,j} \middle\vert k-N_{emp}=m \right] \\
+& \overset{\vref{eq:imat1}}{=} \sum_{j=1}^{k-N_{emp}} R \qquad = R \left( k-N_{emp} \right).
+\end{split}
+\end{equation}
+Finally,
+\begin{equation}
+\begin{split}
+\E \left[ \frac{N_{mat}}{k-N_{emp}} \middle\vert k-N_{emp}=m \right] &  \overset{\vref{eq:nmat}}{=} R, \qquad \text{(independent of $N_{emp}$)} \\
+\Rightarrow \E \left[ \frac{N_{mat}}{k-N_{emp}} \right] & \overset{}{=} \E \left[ \hat{R}_{mat} \right] = R
+\end{split}
+\end{equation}
+\end{proof}
+
+We give the variance without a proof:
+\begin{equation}
+\Var \left[ \hat{R}_{mat} \right] = R(1-R) \left( \E \left[ \frac{1}{k-N_{emp}} \right] \left( 1 + \frac{1}{f-1} \right) - \frac{1}{f-1} \right)
+\end{equation}
+If we have very few empty bins, i.e. $N_{emp}$ is essentially zero and $k \ll f$, the term simplifies to
+\begin{equation}
+\Var \left[ \hat{R}_{mat} \right] \approx \frac{R(1-R)}{k} \left( \frac{f-k}{f-1} \right) \approx \frac{R(1-R)}{k}
+\end{equation}
+as expected.
 
 
 \section{Conclusions}
