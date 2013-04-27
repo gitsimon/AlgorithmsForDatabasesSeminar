@@ -34,7 +34,7 @@
 \maketitle
 
 \section{Introduction}
-This report is written for the seminar titled ``Algorithms for Database Systems" at ETH Z\"{u}rich. The seminar participants read and summarize various papers, which treat solving problems in the context of Big Data, which is this year's topic. This report summarizes and explains the core concepts of \citep{LiK11} and \citep{LiOwZhang12}.
+This report is written for the seminar titled ``Algorithms for Database Systems'' at ETH Z\"{u}rich. The seminar participants read and summarize various papers, which treat solving problems in the context of Big Data, which is this year's topic. This report summarizes and explains the core concepts of \citep{LiK11} and \citep{LiOwZhang12}.
 
 With Big Data, most problems emphasis shifts from computational complexity to memory space usage considerations. Typically, the runtime is dominated by the time needed for memory accesses, hence optimizing the memory footprint already improves our algorithms significantly. 
 
@@ -67,7 +67,7 @@ This web page is just an example.
 \parbox{2cm}{
 \begin{equation*}
 \begin{split}
- \text{\{} & \text{"This web page"},\\ & \text{"web page is"},\\ & \text{"page is just"},\\ & \text{"is just an"},\\ & \text{"just an example"} \text{\}}
+ \text{\{} & \text{``This web page''},\\ & \text{``web page is''},\\ & \text{``page is just''},\\ & \text{``is just an''},\\ & \text{``just an example''} \text{\}}
 \end{split}
 \end{equation*}
 }
@@ -145,7 +145,7 @@ A_{X,b}=\frac{r_X[1-r_X]^{2^b-1}}{1-[1-r_X]^{2^b}}, \qquad A_{Y,b}=\frac{r_Y[1-r
 \end{mytheorem}
 \end{framed}
 
-The intuition for the additional terms $C_{1,b}$ and $C_{2,b}$ in \vref{eq:minwiseB-bit} compared to \vref{eq:minwiseOri} is that we have to account for a type of "false positive": When two minima agree on their last $b$ bits, $e_{X,b,\pi}=e_{Y,b,\pi}$, it's still possible that their are different, $e_{X,\pi}\neq e_{Y,\pi}$. Thus even when $R=0$, the collision probability $P_b$ is not zero, but rather $C_{1,b}$. This makes the derivation much more complicated. A proof of Theorem \vref{the:b-bitMinwiseHashing} can be found in the appendix of \citep{LiK09}.
+The intuition for the additional terms $C_{1,b}$ and $C_{2,b}$ in \vref{eq:minwiseB-bit} compared to \vref{eq:minwiseOri} is that we have to account for a type of ``false positive'': When two minima agree on their last $b$ bits, $e_{X,b,\pi}=e_{Y,b,\pi}$, it's still possible that their are different, $e_{X,\pi}\neq e_{Y,\pi}$. Thus even when $R=0$, the collision probability $P_b$ is not zero, but rather $C_{1,b}$. This makes the derivation much more complicated. A proof of Theorem \vref{the:b-bitMinwiseHashing} can be found in the appendix of \citep{LiK09}.
 
 Even though $D$ is assumed to be large, experiments show that even for $D=20$ the absolute error caused by using \vref{eq:minwiseB-bit} ist $< 0.01$.
 
@@ -159,12 +159,12 @@ From \vref{eq:minwiseB-bit} of Theorem \vref{the:b-bitMinwiseHashing} we derive 
 \hat{P}_b = \frac{1}{k}\sum_{j=1}^k 1 \left\lbrace  e_{X,b,\pi_j } = e_{Y,b,\pi_j } \right\rbrace
 \end{equation}
 
-This estimator is unbiased, i.e. $\E[\hat{R}_b]=\E[R]$. Furthermore, the variance of $\hat{R}_M$ converges to the variance of $\hat{R}_b$, i.e.
+This estimator is unbiased, i.e. $\E[\hat{R}_b]=R$. Furthermore, the variance of $\hat{R}_M$ converges to the variance of $\hat{R}_b$, i.e.
 \begin{equation}
 \lim_{b\rightarrow\inf}\Var\left(\hat{R}_b\right)=\frac{R(1-R)}{k}=\Var\left(\hat{R}_M\right)
 \end{equation}
 
-\subsection{Algorithm}
+\subsection{The Algorithm}
 
 Based on the theoretical results, Algorithm \vref{alg:minwiseHashing} presents the procedure of $b$-bit ($k$-permutation) hashing.
 
@@ -247,11 +247,11 @@ Another drawback is that storing $k$ permutations is sometimes impractical. If e
 
 \section{One Permutation Hashing}
 
-This algorithm is directly motivated by the optimization potential of the standard \emph{minwise hashing} practice: intuitively, it ought to be "wasteful" in that all elements in a set are permuted, scanned but only the minimum will be used. As the name already suggests, we reduce the preprocessing step to only one permutation.
+This algorithm is directly motivated by the optimization potential of the standard \emph{minwise hashing} practice: intuitively, it ought to be ``wasteful'' in that all elements in a set are permuted, scanned but only the minimum will be used. As the name already suggests, we reduce the preprocessing step to only one permutation.
 
 As in section \vref{sec:hammingDistance} we will represent sets $S_i \subseteq \Omega$ as vectors $s_i \in \left\lbrace 0,1 \right\rbrace ^D, \, (s_i)_t = 1\left\lbrace t \in S_i \right\rbrace$. We will setup a running example with $X,Y,Z \subseteq \Omega = \left\lbrace 0,1,\cdots,15\right\rbrace$. Let
 \[
-X=\left\lbrace 2,4,7,13\right\rbrace, \quad Y=\left\lbrace 0,3,6,13\right\rbrace, Z=\quad \left\lbrace 0,1,10,12\right\rbrace.
+X=\left\lbrace 2,4,7,13\right\rbrace, \quad Y=\left\lbrace 0,3,6,13\right\rbrace,\quad Z= \left\lbrace 0,1,10,12\right\rbrace.
 \]
 Now we build up a data matrix where the rows are equal to the vector representations of the permuted sets:
 
@@ -280,7 +280,7 @@ Now we build up a data matrix where the rows are equal to the vector representat
 \end{tikzpicture}
 \end{equation}
 
-The idea is now to divide the columns evenly into $k$ (here $k=4$) bins (parts), and take the minimum in each bin. Because we only compare them within one bin, we can also re-index the elements to use the smallest possible representation of the minima:
+The idea is to divide the columns evenly into $k$ (here $k=4$) bins (parts), take the minimum in each bin. Because later we only compare minima within one bin, we can re-index the elements to use the smallest possible representation:
 
 \begin{equation}
 \begin{tikzpicture}[baseline = (M.center),% center with respect to the matrix center
@@ -304,27 +304,71 @@ The idea is now to divide the columns evenly into $k$ (here $k=4$) bins (parts),
 \node[below left = 0.1pt of M-3-11.south] {bin $3$};
 \node[below left = 0.1pt of M-3-15.south] {bin $4$};
 
-\draw[decoration=brace,decorate] (M-0-1.north west) -- (M-0-16.north east)%
- node[midway,above] {$\Omega$};
+\draw[decoration=brace,decorate] (M-0-1.north west) -- (M-0-4.north east)%
+ node[midway,above] {$\Omega'$};
+\draw[decoration=brace,decorate] (M-0-5.north west) -- (M-0-8.north east)%
+ node[midway,above] {$\Omega'$};
+\draw[decoration=brace,decorate] (M-0-9.north west) -- (M-0-12.north east)%
+ node[midway,above] {$\Omega'$};
+\draw[decoration=brace,decorate] (M-0-13.north west) -- (M-0-16.north east)%
+ node[midway,above] {$\Omega'$};
 
 \begin{scope}[on background layer]
 \draw [fill=black!10] (M-1-1.north west) rectangle (M-3-4.south east);
 \draw [fill=black!10] (M-1-5.north west) rectangle (M-3-8.south east);
 \draw [fill=black!10] (M-1-9.north west) rectangle (M-3-12.south east);
 \draw [fill=black!10] (M-1-13.north west) rectangle (M-3-16.south east);
+\draw [draw=red] (M-1-3.center) circle (1.5ex);
+\draw [draw=red] (M-2-1.center) circle (1.5ex);
+\draw [draw=red] (M-3-1.center) circle (1.5ex);
+\draw [draw=red] (M-1-5.center) circle (1.5ex);
+\draw [draw=red] (M-2-7.center) circle (1.5ex);
+\draw [draw=red] (M-3-11.center) circle (1.5ex);
+\draw [draw=red] (M-1-14.center) circle (1.5ex);
+\draw [draw=red] (M-2-14.center) circle (1.5ex);
+\draw [draw=red] (M-3-13.center) circle (1.5ex);
 \end{scope}
 \end{tikzpicture}
 \end{equation}
 
-The minima-vectors $m(\cdot)$ are
+We get the minima-vectors
 \begin{equation}
 \begin{split}
-m(\pi(X))=[2,0,*,1],\\
-m(\pi(Y))=[0,2,*,1],\\
-m(\pi(Z))=[0,*,2,0],\\
+v_X=[2,0,*,1],\\
+v_Y=[0,2,*,1],\\
+v_Z=[0,*,2,0],\\
 \end{split}
 \end{equation}
 where '$*$' denotes an empty bin.
+
+To derive the \emph{resemblance} between two sets, e.g. $X,Y$, we introduce two definitions:
+\begin{equation}
+\begin{split}
+\text{number of ``jointly empty bins'':} \qquad & N_{emp}=\sum_{j=1}^k I_{emp,j}, \\
+\text{number of ``matched bins'':} \qquad & N_{mat}=\sum_{j=1}^k I_{mat,j},\\
+\end{split}
+\end{equation}
+where $I_{emp,j}$ and $I_{mat,j}$ are defined for the $j$-th bin, as
+\begin{equation}
+\begin{split}
+  I_{emp,j} &=\begin{cases}
+    1 & \text{if both $\pi(X)$ and $\pi(Y)$ are empty in the $j$-th bin} \\
+    0 & \text{otherwise}
+  \end{cases}\\
+  I_{mat,j} &=\begin{cases}
+    1 & \text{if both $\pi(X)$ and $\pi(Y)$ are not empty and the smallest} \\
+      & \text { elements in the $j$-th bin matches, i.e. $(v_X)_j=(v_Y)_j$} \\
+    0 & \text{otherwise}
+  \end{cases}
+\end{split}
+\end{equation}
+
+In our example we have $N_{emp}=1$ and $N_{mat}=1$.
+
+\subsection{The Estimator}
+
+We use the notations $a=|X \cap Y|$ and $f=|X \cup Y|=|X|+|Y|-a$.
+
 
 \section{Conclusions}
 
