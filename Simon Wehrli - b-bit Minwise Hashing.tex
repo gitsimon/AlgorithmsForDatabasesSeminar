@@ -40,7 +40,7 @@ With Big Data, most problems emphasis shifts from computational complexity to me
 
 Many today's applications are faced with very large datasets. A common task is to find \emph{similarity} between two or several such sets. There are lots of problem solutions which use a mapping to sets of properties and then do a \emph{similarity search} on them. Fast (approximative) algorithms for this search enable improvements of many well-known algorithms, e.g. of machine learning and computer vision.
 
-We start by explaining the original \emph{Minwise Hashing}, which nicely presents the basic idea behind all algorithms. We move on to a major improvement, the \emph{b-bit k-permutation Minwise Hashing}, which reduces storage at the cost of more iterations in the algorithm and is a generalization of the concept. We then present \emph{One Permutation Hashing}, which achieves surprising accuracy using only one permutation.
+We start by explaining the original \textsc{Minwise Hashing}, which nicely presents the basic idea behind all algorithms. We move on to a major improvement, the \textsc{b-bit k-permutation Minwise Hashing}, which reduces storage at the cost of more iterations in the algorithm and is a generalization of the concept. We then present \emph{One Permutation Hashing}, which achieves surprising accuracy using only one permutation. We focus on the concepts and algorithms and will reference to papers for applications in practice.
 
 \subsection{Similarity}
 We denote by $\Omega$ the set of all possible items of the sets $S_i \subseteq \Omega$, $i = 1 \text{ to } n$. $\left| \Omega \right| = D$ is always large (e.g. $D=2^{64}$). Often we consider only two sets $S_1 = X$, $S_2 = Y$.
@@ -83,10 +83,11 @@ Clearly, the number of possible shingles and therefore $D$ is huge. Assume $10^5
 
 A working approximative solution to this problem was described by Broder and his colleagues \citep{Broder:1998,BroderGMZ97}. Their algorithm is based on the following observation:
 
-Suppose a random permutation $\pi$ is performed on $\Omega$,
+Suppose a random permutation $\pi$ is performed on $\Omega$\footnote{We assume there is a perfect hash function applied to the elements of the original domain which always gives us $\Omega = \{0,1,\ldots,D-1\}$. Note that in the paper \citep{LiK11}, the hash function is applied after the permutation and the minimum-function, but it is simpler to understand this way.},
 \[
-\pi:\Omega \longrightarrow\ \Omega, \qquad \text{where } \Omega = \{0,1,\ldots,D-1\}.\footnote{We assume there is a perfect hash function applied to the elements of the original domain which always gives us $\Omega = \{0,1,\ldots,D-1\}$. Note that in the paper \citep{LiK11}, the hash function is applied after the permutation and the minimum-function, but it is simpler to understand this way.}
+\pi:\Omega \longrightarrow\ \Omega, \qquad \text{where } \Omega = \{0,1,\ldots,D-1\}.
 \]
+
 
 With $\pi(S_i)$ we denote the application of the permutation $\pi$ to every element of $S_i$. A key role play the minima of the permuted sets:
 \[
@@ -105,7 +106,7 @@ We can now build an unbiased estimator $\hat{R}_M$ of $R$ with $k$ minwise indep
 \begin{equation}\label{eq:minWiseVariance}
 Var(\hat{R}_M)=\frac{1}{k}R(1-R).
 \end{equation}
-We later refer to $e_{S_i,\pi_j}$ as a \textbf{sample} and to $k$ as the \textbf{sample size}. To store a \textbf{sample} may require e.g., $64$ bits. Note that the minimum function $\min(\cdot)$ needs $O(D)$ time and constant space and can be precomputed for each set $S_i$ and permutation $\pi_j$.\footnote{A detailed runtime analysis will follow for the improved algorithm in section \vref{sec:b-bitMinwiseHashing}}
+We later refer to $e_{S_i,\pi_j}$ as a \textbf{sample} and to $k$ as the \textbf{sample size}. To store a \textbf{sample} may require e.g., $64$ bits. Note that the minimum function $\min(\cdot)$ needs $O(D)$ time and constant space and can be precomputed for each set $S_i$ and permutation $\pi_j$.\footnote{A detailed runtime analysis will follow for the improved algorithm in section \vref{sec:b-bitDrawbacks}}
 
 Many applications, especially duplicate detection, are interested in detecting somewhat high similarity, thus an approximation seems reasonable. From equation \vref{eq:minWiseVariance} we learn, that the accuracy can be adjusted by choosing the \textbf{sample size} appropriately.
 
@@ -114,7 +115,7 @@ However, finding duplicates out of $m$ objects, e.g. web pages, still needs $O(m
 
 \section{b-bit k-permutation Minwise Hashing}\label{sec:b-bitMinwiseHashing}
 
-We will present an algorithm which improves on the storage requirements of the original \emph{Minwise Hashing}. The idea is to reduce the size of each \textbf{sample} by only taking $b$ bits of it, as opposed to, e.g. $64$ bits. Intuitively, this will increase the estimation variance $Var(\hat{R}_M)$, at the same \textbf{sample size} $k$. To maintain the same accuracy, we have to increase $k$. One can show, if the resemblance is not too small, we will not have to increase $k$ much and in total use less storage.
+We will present an algorithm which improves on the storage requirements of the original \textsc{Minwise Hashing}. The idea is to reduce the size of each \textbf{sample} by only taking $b$ bits of it, as opposed to, e.g. $64$ bits. Intuitively, this will increase the estimation variance $Var(\hat{R}_M)$, at the same \textbf{sample size} $k$. To maintain the same accuracy, we have to increase $k$. One can show, if the resemblance is not too small, we will not have to increase $k$ much and in total use less storage.
 
 For example, when $b=1$ and $R=0.5$, the estimation variance will increase at most by a factor of $3$. To keep the same accuracy, we have to increase the \textbf{sample size} by a factor of $3$. If we before stored each minimum $\min(\pi_j(S_i))$ using $64$ bits, the improvement with $b=1$ is $64/3=21.3$.
 
@@ -146,7 +147,7 @@ A_{X,b}=\frac{r_X[1-r_X]^{2^b-1}}{1-[1-r_X]^{2^b}}, \qquad A_{Y,b}=\frac{r_Y[1-r
 \end{mytheorem}
 \end{framed}
 
-The intuition for the additional terms $C_{1,b}$ and $C_{2,b}$ in \vref{eq:minwiseB-bit} compared to \vref{eq:minwiseOri} is that we have to account for a type of ``false positive'': When two minima agree on their last $b$ bits, $e_{X,b,\pi}=e_{Y,b,\pi}$, it's still possible that their are different, $e_{X,\pi}\neq e_{Y,\pi}$. Thus even when $R=0$, the collision probability $P_b$ is not zero, but rather $C_{1,b}$. This makes the derivation much more complicated. A proof of Theorem \vref{the:b-bitMinwiseHashing} can be found in the appendix of \citep{LiK09}.
+The intuition for the additional terms $C_{1,b}$ and $C_{2,b}$ in \vref{eq:minwiseB-bit} compared to \vref{eq:minwiseOri} is that we have to account for a type of ``false positive'': When two minima agree on their last $b$ bits, $e_{X,b,\pi}=e_{Y,b,\pi}$, it's still possible that their are different, $e_{X,\pi}\neq e_{Y,\pi}$. Thus even when $R=0$, the collision probability $P_b$ is not zero, but rather $C_{1,b}$. This makes the derivation much more complicated.\footnote{A proof of Theorem \vref{the:b-bitMinwiseHashing} can be found in the appendix of \citep{LiK09}.}
 
 Even though $D$ is assumed to be large, experiments show that even for $D=20$ the absolute error caused by using \vref{eq:minwiseB-bit} ist $< 0.01$.
 
@@ -167,7 +168,7 @@ This estimator is unbiased, i.e. $\E[\hat{R}_b]=R$. Furthermore, the variance of
 
 \subsection{The Algorithm}
 
-Based on the theoretical results, Algorithm \vref{alg:minwiseHashing} presents the procedure of $b$-bit ($k$-permutation) hashing.
+Based on the theoretical results, Algorithm \vref{alg:minwiseHashing} presents the procedure of $b$-bit ($k$-permutation) Hashing.
 
 \begin{algorithm}[H]
 \caption{\textsc{b-bit Minwise Hashing} algorithm, applied to estimating pairwise resemblances in a collection of $n$ sets.}
@@ -204,51 +205,25 @@ If we reformulate \vref{def:jaccard} as
 \begin{equation}
 a=\frac{R}{1+R}(|X|+|Y|),
 \end{equation}
-we can use the b-bit minwise hashing algorithm to estimate $H$ with
+we can use the \textsc{b-bit Minwise Hashing} algorithm to estimate $H$ with
 \begin{equation}
 \hat{H}_b=|X|+|Y|-2\frac{\hat{R}_b}{1+\hat{R}_b}(|X|+|Y|)=\frac{1-\hat{R}_b}{1+\hat{R}_b}(|X|+|Y|)
 \end{equation}
 
 Experiments show that this approach is significantly faster than standard methods for computing the \emph{hamming distance}.
 
-\subsection{Drawbacks}
+\subsection{Drawbacks} \label{sec:b-bitDrawbacks}
 
-The major problem of \emph{b-bit Minwise Hashing} is the costly preprocessing. Consider an application in machine learning, where the sets $S_i$ represents some properties of an object (e.g. a document or an image). Often one wants to add objects dynamically at runtime and compare them to other objects by finding the \emph{resemblance} of their properties. Finding the $k$ minima under the permutations may take too long, i.e. uses $O(k|S_i|)$ to $O(kD)$ time per set.
+The major problem of \textsc{b-bit Minwise Hashing} is the costly preprocessing. Consider an application in machine learning, where the sets $S_i$ represents some properties of an object (e.g. a document or an image). Often one wants to add objects dynamically at runtime and compare them to other objects by finding the \emph{resemblance} of their properties. Finding the $k$ minima under the permutations may take too long, i.e. uses $O(k|S_i|)$ to $O(kD)$ time per set.
 In general, the costly preprocessing may cause problems in user-facing applications, where the testing efficiency for new data objects is crucial. There is the need for a entirely fast algorithm to keep this applications responsive.
 
 Another drawback is that storing $k$ permutations is sometimes impractical. If e.g. $D=10^9$, one permutation vector uses $4$GB, which is still possible. But the space needed to store e.g. $k=500$ permutation vectors (each of length $D$), is not tolerable.
-
-%\begin{center}
-\begin{table}
-{\scriptsize 
-\begin{tabulary}{1\textwidth}{LLL}
-%\begin{tabular}{|l|l|l|l|l|}
-\hline \textbf{Algorithm}  %& \textbf{Type} & \textbf{Space complexity} 
-& \textbf{Pros} & \textbf{Cons} \\ 
-\hline Karp, Shenker %& Deterministic %& $O\left(\frac{1}{s}\right)$ 
-& Low memory usage.\newline Constant amortized time complexity per element. & No guarantees regarding false positives.\newline Requires two passes to find I(x,s) exactly.\newline Does not handle deletes.\newline Singleton streams only. \\ 
-\hline Manku, Motwani (StickySampling) %& Randomized 	%& $O\left(\frac{1}{\varepsilon}\log \left(\frac{1}{s \cdot \delta}\right)\right)$ 
-& Strong guarantees. & Worse average space complexity than LossyCounting.\newline Does not handle deletes. \\ 
-\hline Manku, Motwani (LossyCounting) %& Deterministic %& $O\left(\frac{1}{\varepsilon}\log (\varepsilon \cdot n)\right)$ 
-& Strong guarantees.\newline Good average space complexity.\newline Can be extended to handle itemsets.  & Does not handle deletes. \\ 
-\hline Cormode, Muthukrishnan  %& Randomized 	%& $O\left(\frac{1}{s} \log\left(\frac{1}{s\cdot \delta}\right) \log m\right)$ 
-& Handles deletes.\newline Moderate guarantees. & Singleton streams only.\newline False negatives possible.\newline Requires bijection to integers. \\ 
-\hline 
-%\end{tabular} 
-
-\end{tabulary}
-}
-\caption{Algorithm comparison}
-\label{ComparisonTable}
-\end{table}
-%\end{center}
-
 
 
 
 \section{One Permutation Hashing}
 
-This algorithm is directly motivated by the optimization potential of the standard \emph{minwise hashing} practice: intuitively, it ought to be ``wasteful'' in that all elements in a set are permuted, scanned but only the minimum will be used. As the name already suggests, we reduce the preprocessing step to only one permutation.
+This algorithm is directly motivated by the optimization potential of the standard \textsc{Minwise Hashing} method: intuitively, it ought to be ``wasteful'' in that all elements in a set are permuted, scanned but only the minimum will be used. As the name already suggests, we reduce the preprocessing step to only one permutation.
 
 As in section \vref{sec:hammingDistance} we will represent sets $S_i \subseteq \Omega$ as vectors $s_i \in \left\lbrace 0,1 \right\rbrace ^D, \, (s_i)_t = 1\left\lbrace t \in S_i \right\rbrace$. We will setup a running example with $X,Y,Z \subseteq \Omega = \left\lbrace 0,1,\cdots,15\right\rbrace$. Let
 \[
@@ -283,7 +258,7 @@ Now we build up a data matrix where the rows are equal to the vector representat
 
 The idea is to divide the columns evenly into $k$ (here $k=4$) bins (parts), take the minimum in each bin. Because later we only compare minima within one bin, we can re-index the elements to use the smallest possible representation:
 
-\begin{equation}
+\begin{equation} \label{matrix:complete}
 \begin{tikzpicture}[baseline = (M.center),% center with respect to the matrix center
         every left delimiter/.style={xshift=1ex},%tighter delimiter spacing
         every right delimiter/.style={xshift=-1ex}]
@@ -343,7 +318,7 @@ v_Z=[0,*,2,0],\\
 where '$*$' denotes an empty bin.
 
 To derive the \emph{resemblance} between two sets, e.g. $X,Y$, we introduce two definitions:
-\begin{equation}
+\begin{equation} \label{eq:defEmpjMatj}
 \begin{split}
 \text{number of ``jointly empty bins'':} \qquad & N_{emp}=\sum_{j=1}^k I_{emp,j}, \\
 \text{number of ``matched bins'':} \qquad & N_{mat}=\sum_{j=1}^k I_{mat,j},\\
@@ -364,14 +339,13 @@ where $I_{emp,j}$ and $I_{mat,j}$ are defined for the $j$-th bin, as
 \end{split}
 \end{equation}
 
-In our example we have $N_{emp}=1$ and $N_{mat}=1$.
 
 \subsection{The Estimator}
 
 Recall the notations $a=|X \cap Y|$ and $f=|X \cup Y|=|X|+|Y|-a$. We formulate the estimator as 
 \begin{framed}
 \begin{mylemma} \label{lem:onePermutationHashing}
-The \emph{resemblance} estimator
+The \emph{resemblance} is estimated by
 \begin{equation}
 \hat{R}_{mat}=\frac{N_{mat}}{k-N_{emp}}
 \end{equation}
@@ -381,7 +355,11 @@ is unbiased, i.e.
 \end{equation}
 \end{mylemma}
 \end{framed}
+
+In our example we have $N_{emp}=1$ and $N_{mat}=1$. Thus $\hat{R}_{mat}=1/3$.
+
 Because it is a bit surprising that the estimator is unbiased, we give a
+
 \begin{proof}[Proof of Lemma \vref{lem:onePermutationHashing}]
 Because we assume that the sets and thus the data vectors are not completely empty, it holds
 \begin{equation*}
@@ -401,20 +379,20 @@ I_{emp,j} = 1 \Rightarrow I_{mat,j}=0,
 and we derive
 \begin{equation}\label{eq:nmat}
 \begin{split}
-\E \left[ N_{mat} \middle\vert k-N_{emp}=m \right] &\overset{\vref{eq:empmat}}{=} \sum_{j=1}^{k-N_{emp}} \E \left[ I_{mat,j} \middle\vert k-N_{emp}=m \right] \\
-& \overset{\vref{eq:imat1}}{=} \sum_{j=1}^{k-N_{emp}} R \qquad = R \left( k-N_{emp} \right).
+\E \left[ N_{mat} \middle\vert k-N_{emp}=m \right] &\overset{\ref{eq:empmat}}{=} \sum_{j=1}^{k-N_{emp}} \E \left[ I_{mat,j} \middle\vert k-N_{emp}=m \right] \\
+& \overset{\ref{eq:imat1}}{=} \sum_{j=1}^{k-N_{emp}} R \qquad = R \left( k-N_{emp} \right).
 \end{split}
 \end{equation}
 Finally,
 \begin{equation}
 \begin{split}
-\E \left[ \frac{N_{mat}}{k-N_{emp}} \middle\vert k-N_{emp}=m \right] &  \overset{\vref{eq:nmat}}{=} R, \qquad \text{(independent of $N_{emp}$)} \\
+\E \left[ \frac{N_{mat}}{k-N_{emp}} \middle\vert k-N_{emp}=m \right] &  \overset{\ref{eq:nmat}}{=} R, \qquad \text{(independent of $N_{emp}$)} \\
 \Rightarrow \E \left[ \frac{N_{mat}}{k-N_{emp}} \right] & \overset{}{=} \E \left[ \hat{R}_{mat} \right] = R
 \end{split}
 \end{equation}
 \end{proof}
 
-We give the variance without a proof:
+We give the variance without a proof.\footnote{A proof can be found in the appendix of \citep{LiOwZhang12}.}
 \begin{equation}
 \Var \left[ \hat{R}_{mat} \right] = R(1-R) \left( \E \left[ \frac{1}{k-N_{emp}} \right] \left( 1 + \frac{1}{f-1} \right) - \frac{1}{f-1} \right)
 \end{equation}
@@ -424,9 +402,55 @@ If we have very few empty bins, i.e. $N_{emp}$ is essentially zero and $k \ll f$
 \end{equation}
 as expected.
 
+\subsection{The Algorithm}
+
+Based on the theoretical results, Algorithm \vref{alg:onePermutationHashing} presents the procedure of \textsc{One Permutation Hashing}.
+
+\begin{algorithm}[H]
+\caption{\textsc{One Permutation Hashing} algorithm, applied to estimating pairwise resemblances in a collection of $n$ sets.}
+\label{alg:onePermutationHashing}
+\begin{algorithmic}
+\Require Sets $S_i \subseteq \Omega = \{0,1,\ldots,D-1\}, i = 1 \text{ to } n$. \Comment $D = \left| \Omega \right|$
+\Ensure Estimated resemblance $\hat{R}_{mat}$
+\State // Pre-processing
+\State Generate one random permutations $\pi: \Omega\longrightarrow\Omega$
+\ForAll{$i = 1 \text{ to } n$}
+	\State Permute set $S_i$ with $\pi$, store the re-indexed minima of each of the $k$ bins in a data vector $v_{S_i} \in \left\lbrace 0,\cdots,\lfloor \left| S_i \right| / k \rfloor \right\rbrace ^k$. \Comment see \ref{matrix:complete}
+\EndFor
+\State
+\State // Estimation (Use two sets $X,Y$ as an example)
+\State Estimate the resemblance by $\hat{R}_{mat}=\frac{N_{mat}}{k-N_{emp}}$ \Comment see \ref{eq:defEmpjMatj}
+\end{algorithmic}
+\end{algorithm}
+
+Empirical results show that the \textsc{One Permutation Hashing} scheme performs as well or even slightly better than the \textsc{b-bit k-permutation hashing} scheme.
+
+Let's have a look at the runtime and storage requirements and compare them with Algorithm \vref{alg:minwiseHashing}. The pre-processing step generates one permutation vector, which uses $\Theta(D)$ storage, which even for large $D$ is still practical (in contrast to storing $k$ permutation vectors for the \textsc{Minwise Hashing} method). The pre-processing also generates a data vector with $k$ elements (which uses themselves only $O(\log(D/k))$ bits because we re-indexed them within the bins) for each set, thus $O(k \log(D/k))$ bits per set.
+
+Table \vref{table:comparison} summarizes the runtime and storage requirements of the different algorithms.
+
+\begin{table}[h]
+{
+\begin{tabulary}{1\textwidth}{LLL}
+\hline \textbf{Space/Time, Step} 
+& \textsc{b-bit Minwise Hashing} & \textsc{One Permutation Hashing} \\ 
+\hline Space for storing permutation(s) & $O(kD\log(D))$ & $O(D\log(D))$ \\ 
+\hline Time complexity pre-processing per set & $O(kD)$ & $O(D)$ \\ 
+\hline Space for storing pre-processing data per set & $O(kb)$ & $O(k \log(D/k))$ \\ 
+\hline Time complexity estimating similarity of two sets & $O(kb)$ & $O(k \log(D/k))$ \\ 
+\hline
+\end{tabulary}
+}
+\caption{Algorithm comparison. Note that $k$ denotes different things for the tow algorithms, the number of permutations resp. the number of bins. Because typically $k \leq 512$, we could also consider it as a constant.}
+\label{table:comparison}
+\end{table}
+
 
 \section{Conclusions}
 
+\textsc{Minwise hashing} and \textsc{One Permutation Hashing} are standard techniques for efficiently estimating set similarity in massive datasets. We started at explaining the original \textsc{Minwise Hashing} and demonstrated how reducing the amount of stored bits per \textbf{sample} to $b$ bits leads to a effective reduction of the required storage and consequently computational overhead.
+
+We then went over to \textsc{One Permutation Hashing}, which uses the same basic idea, but makes better use of the permuted set and therefore only needs one permutation. Overall, this last algorithm is superior to the others in many aspects.
 
 \bibliographystyle{unsrt}
 \bibliography{Bibliography}
