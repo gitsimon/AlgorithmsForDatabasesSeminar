@@ -44,6 +44,7 @@ Many today's applications are faced with very large datasets. A common task is t
 
 We start by explaining the original \textsc{Minwise Hashing}, which nicely presents the basic idea behind all algorithms. We move on to a major improvement, the \textsc{b-bit k-permutation Minwise Hashing}, which reduces storage at the cost of more iterations in the algorithm and is a generalization of the concept. We then present \textsc{One Permutation Hashing}, which achieves surprising accuracy using only one permutation. We focus on the concepts and algorithms and will reference to papers for applications in practice.
 
+
 \subsection{Similarity}
 We denote by $\Omega$ the set of all possible items of the sets $S_n \subseteq \Omega$, $n = 1 \text{ to } N$. $\left| \Omega \right| = D$ is always large (e.g. $D=2^{64}$). Often we consider only two sets $S_1 = X$, $S_2 = Y$. Let $a=|X \cap Y|,$ $b=|X|-a$ and $c=|Y|-a$. Figure \vref{fig:sets} summarizes these definitions graphically.
 
@@ -91,10 +92,20 @@ R=\frac{\left| X \cap Y \right|}{\left| X \cup Y \right|} = \frac{a}{\left| X \r
 \end{mydef}
 \end{framed}
 
+\paragraph{Other Notations}
+ 
+Later we often look at some important event of a problem where we use $\Pr[\cdot]$ as a shorthand for the \emph{Probability} of that event. To get an estimator for $R$ out of a probabilistic argument, we always use some Bernoulli experiment. This is a process, where we repeatedly flip a possibly biased coin, but the bias does not change. We can see it as a sequence of binary random variables, because only two outcomes are possible, $0$ or $1$. An event is described by an equation. We use the notation $1\left\lbrace \text{\textit{equation}} \right\rbrace$ which is one if and only if the \textit{equation} in curly braces is true:
+\begin{equation*}
+1\left\lbrace \text{\textit{equation}} \right\rbrace =\begin{cases}
+    1 & \text{if \textit{equation} evaluates to \textit{true}} \\
+    0 & \text{otherwise}
+\end{cases}
+\end{equation*}
+
 \subsection{Motivating Example}
 Consider a web search provider, which want to present a result list of web pages without duplicates. To achieve that, for every pair of web pages, we drop one of them, if they are textually very similar. This is the case when their \emph{resemblance} $R$ is greater than some threshold $R_0$. But to be able to use the \emph{resemblance} as a measurement, we have to map each page to a set. One could imagine to define this mapping from the page to the set of all words occurring on the page. As in several studies \citep{Broder:1998,BroderGMZ97} we will instead map a page to a set of \emph{shingles}. A shingle is a string of $w$ contiguous words, and we include a \emph{shingle} in our result set if the \emph{shingle} occurs on the page (in the same order). Typically we choose $w = 5$. Figure \vref{fig:shingle} shows an exemplary mapping.
 
-\begin{figure}[h]
+\begin{figure}[H]
 \begin{center}
 \fbox{
 \parbox{2cm}{
@@ -182,12 +193,13 @@ To simplify notation, we overload the definition of $\pi$ to work also for subse
 \end{split}
 \end{equation*}
 
-A key role play the minima of the permuted sets:
+We define
 \[
 h_{S_n,\pi}=min(\pi(S_n))
 \]
+to be the smallest element of set $S_n$ permuted with $\pi_j$. Note that the smallest element changes under the permutations because $\pi$ is a permutation on $\Omega$ and $S_n$ is only a subset of $\Omega$ in general.
 
-We use $\Pr[\cdot]$ as a shorthand for the \emph{Probability} of some event. An elementary probability argument shows that for two sets $X,Y \subseteq \Omega$
+An elementary probability argument shows that for two sets $X,Y \subseteq \Omega$
 \begin{equation}\label{eq:minwiseOri}
 \Pr[h_{X,\pi}=h_{Y,\pi}]=\Pr [\min(\pi(X))=\min(\pi(Y))]=\frac{\left| X \cap Y \right|}{\left| X \cup Y \right|}=R.
 \end{equation}
@@ -204,6 +216,32 @@ We later refer to $h_{S_n,\pi_j}$ as a \textbf{sample} and to $k$ as the \textbf
 Many applications, especially duplicate detection, are interested in detecting somewhat high similarity, thus an approximation seems reasonable. From equation \vref{eq:minWiseVariance} we learn, that the accuracy can be adjusted by choosing the \textbf{sample size} appropriately.
 
 However, finding duplicates out of $m$ objects, e.g. web pages, still needs $O(m^2)$ comparisons. There are number of approaches to deal with that problem, but we will not discuss it here and refer to \citep{BroderGMZ97,STOC02*380}.
+
+
+
+\subsection{The Algorithm}
+
+Based on the theoretical results, Algorithm \vref{alg:orgMinwiseHashing} presents the procedure of ($k$-permutation) \textsc{Minwise Hashing}.
+
+\begin{algorithm}[H]
+\caption{Original \textsc{Minwise Hashing} algorithm, applied to estimating pairwise resemblances in a collection of $N$ sets.}
+\label{alg:orgMinwiseHashing}
+\begin{algorithmic}
+\Require Sets $S_n \subseteq \Omega = \{0,1,\ldots,D-1\}, n = 1 \text{ to } N$. \Comment $D = \left| \Omega \right|$
+\Ensure Estimated resemblance $\hat{R}_M$
+\State // Pre-processing
+\State Generate $k$ random permutations $\pi_j: \Omega\longrightarrow\Omega, j=1\text{ to }k$
+\ForAll{$n = 1 \text{ to } N, j = 1 \text{ to } k$}
+	\State Store $\min(\pi_j(S_n))$, denoted by $h_{S_n,\pi_j}$.
+\EndFor
+\State
+\State // Estimation (Use two sets $X,Y$ as an example)
+\State Estimate the resemblance by $\hat{R}_M=\frac{1}{k}\sum_{j=1}^k 1 \left\lbrace h_{X,\pi_j}=h_{Y,\pi_j} \right\rbrace$
+\end{algorithmic}
+\end{algorithm}
+
+
+
 
 
 \section{b-bit k-permutation Minwise Hashing}\label{sec:b-bitMinwiseHashing}
@@ -261,7 +299,7 @@ This estimator is unbiased, i.e. $\E[\hat{R}_b]=R$. Furthermore, the variance of
 
 \subsection{The Algorithm}
 
-Based on the theoretical results, Algorithm \vref{alg:minwiseHashing} presents the procedure of $b$-bit ($k$-permutation) Hashing.
+Based on the theoretical results, Algorithm \vref{alg:minwiseHashing} presents the procedure of $b$-bit ($k$-permutation) \textsc{Minwise Hashing}.
 
 \begin{algorithm}[H]
 \caption{\textsc{b-bit Minwise Hashing} algorithm, applied to estimating pairwise resemblances in a collection of $N$ sets.}
@@ -318,11 +356,11 @@ Another drawback is that storing $k$ permutations is sometimes impractical. If e
 
 This algorithm is directly motivated by the optimization potential of the standard \textsc{Minwise Hashing} method: intuitively, it ought to be ``wasteful'' in that all elements in a set are permuted, scanned but only the minimum will be used. As the name already suggests, we reduce the preprocessing step to only one permutation.
 
-As in section \vref{sec:hammingDistance} we will represent sets $S_n \subseteq \Omega$ as vectors $s_n \in \left\lbrace 0,1 \right\rbrace ^D, \, (s_n)_i = 1\left\lbrace i \in S_n \right\rbrace$. We will setup a running example with $X,Y,Z \subseteq \Omega = \left\lbrace 0,1,\cdots,15\right\rbrace$. Let
+As in section \vref{sec:hammingDistance} we will represent sets $S_n \subseteq \Omega$ as vectors $s_n \in \left\lbrace 0,1 \right\rbrace ^D, \, (s_n)_i = 1\left\lbrace i \in S_n \right\rbrace$. We will setup a running example with $X,Y,Z \subseteq \Omega = \left\lbrace 0,1,\cdots,15\right\rbrace$. Let be $\pi$ some random permutation on $\Omega$ and the already permuted sets be
 \[
-X=\left\lbrace 2,4,7,13\right\rbrace, \quad Y=\left\lbrace 0,3,6,13\right\rbrace,\quad Z= \left\lbrace 0,1,10,12\right\rbrace.
+\pi(X)=\left\lbrace 2,4,7,13\right\rbrace, \quad \pi(Y)=\left\lbrace 0,3,6,13\right\rbrace,\quad \pi(Z)= \left\lbrace 0,1,10,12\right\rbrace.
 \]
-Now we build up a data matrix where the rows are equal to the vector representations of the permuted sets:
+Now again we build up a data matrix where the rows are equal to the vector representations of the permuted sets:
 
 \begin{equation}
 \begin{tikzpicture}[baseline = (M.center),% center with respect to the matrix center

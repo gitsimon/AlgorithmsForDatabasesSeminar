@@ -1,10 +1,13 @@
 %\documentclass[a4paper]{article}
 \documentclass[landscape,twocolumn,a4paper]{article}
-\author{Eir\'{i}kur Fannar Torfason}
-\date{13.4.2013}
-\title{Frequent Itemsets in Streams - Notes}
+\usepackage[a4paper,vmargin={20mm,20mm},hmargin={20mm,10mm}]{geometry}
 
-%\usepackage[parfill]{parskip}
+\author{Simon Wehrli}
+\date{11.5.2013}
+\title{Set similarity with k-permutation Minwise Hashing - NOTES}
+
+\usepackage[parfill]{parskip}
+\usepackage{tikz} % for drawing advanced matrices
 \usepackage{amsmath}
 \usepackage{amsthm}
 \usepackage{algorithm}
@@ -14,217 +17,313 @@
 \usepackage{tabulary}
 \usepackage{caption}
 \usepackage{framed}
-\usepackage{geometry}
+\usepackage[english]{varioref} %automatische Anpassung von Referenzen
+\labelformat{equation}{(#1)} %make references to equations like (1)
+\usepackage{float} % bewirkt, dass Option [H] für float-Umgebungen von Latex umgesetzt wird
+
+\usetikzlibrary{matrix,decorations.pathreplacing,backgrounds,positioning}
+
+\DeclareMathOperator{\Var}{Var}
+\DeclareMathOperator{\E}{E}
 
 \renewcommand{\algorithmicrequire}{\textbf{Input:}}
 \renewcommand{\algorithmicensure}{\textbf{Output:}}
 
 \newtheorem{mydef}{Definition}
 \newtheorem{mylemma}{Lemma}
+\newtheorem{mytheorem}{Theorem}
 
-\begin{document}
+\newcommand*{\bfrac}[2]{\genfrac{\lbrace}{\rbrace}{0pt}{}{#1}{#2}}
+
+\begin{document} 
 \maketitle
 
 \section{Introduction}
-This year's topic is Big Data. The definition of Big Data is rather subjective, and different people may have different notions as to what exactly qualifies as Big Data. I therefore believe it to be prudent to state a rather broad (yet grossly incomplete) interpretation of the term, and how it relates to the subject of this talk.
+Many today's applications are faced with very large datasets. A common task is to find \emph{similarity} between two or several such sets.
 
-The Big Data moniker applies to data collections so vast that traditional tools and methods, such as those provided by relational database systems, are incapable of efficiently storing and analysing them. In particular, this may imply that it is impossible to persist the data. Even if the data are persisted, each scan may be so costly that it is imperative that only a single scan be made to analyse them. Hence, we will limit our scope to that of data streams. %Finally, the amount of memory, required to compute accurate statistics from gigantic data collections, may be prohibitively large.
+This notes are intended as a help for the talk and explains only the core concepts of \citep{LiK11} and \citep{LiOwZhang12}.
 
-It is a simple task to identify items, or sets of items, that occur frequently in a data stream. All one needs to do is count. However, the amount of memory required to determine exactly the most frequent items may be prohibitively large as we will soon see. But first, let us lay down some notation.
+\subsection{Similarity}
+We denote by $\Omega$ the set of all possible items of the sets $S_n \subseteq \Omega$, $n = 1 \text{ to } N$. $\left| \Omega \right| = D$ is always large (e.g. $D=2^{64}$). Often we consider only two sets $S_1 = X$, $S_2 = Y$. Let $a=|X \cap Y|,$ $b=|X|-a$ and $c=|Y|-a$. Figure \vref{fig:sets} summarizes these definitions graphically.
 
-\subsection{Notation and Terminology}
-We denote by $\mathcal{I}$ the set of all items, which can appear in a data stream. We let $m = |\mathcal{I}|$ denote the size of this set. We define an \textit{itemset} to be a subset of $\mathcal{I}$. A \textit{data stream} is a sequence $x = x_1 x_2 \dots x_{n-1} x_n$ such that $\forall i: x_i \subseteq \mathcal{I}$. We denote by $n = |x|$ the length of the sequence. We say that a data stream is a \textit{singleton data stream} if all of the itemsets in the sequence contain exactly one element, that is, $\forall i: |x_i| = 1$.
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+% left hand
+\scope
+\clip (-2,-2) rectangle (2,2)
+      (1,0) circle (1);
+\fill[fill=blue!30] (0,0) circle (1);
+\endscope
+% right hand
+\scope
+\clip (-2,-2) rectangle (2,2)
+      (0,0) circle (1);
+\fill[fill=orange!30] (1,0) circle (1);
+\endscope
+% middle
+\scope
+\clip (-2,-2) rectangle (2,2)
+      (0,0) circle (1)
+      (1,0) circle (1);
+\fill[fill=red!30] (1,0) circle (1);
+\endscope
 
-Let $j$ be an itemset and $x$ be a data stream. Then we denote by $c_j$ the number of occurences of $j$ in $x$, that is,
-$$
-c_j = \left| \, \{i \; | \; i \in \{1, \dots ,n\} \wedge j \subseteq x_i \} \, \right| \, .
-$$
-Moreover, we define the (relative) \textit{frequency} of $j$ to be 
-$$
-f_j = \frac{c_j}{|x|} = \frac{c_j}{n} \, .
-$$
+% outline
+\draw (0,0) circle (1) (0,1)  node [text=black,above] {$X$}
+      (1,0) circle (1) (1,1)  node [text=black,above] {$Y$}
+      (-2,-2) rectangle (3,2) node [text=black,above] {$\Omega$};
+\node[draw=none,text=blue,fill=white] at (-0.5,0) {$b$};
+\node[draw=none,text=red,fill=white] at (0.5,0) {$a$};
+\node[draw=none,text=orange,fill=white] at (1.5,0) {$c$};
+\end{tikzpicture}
+\caption{Two example sets in $\Omega$ and the notation $a,b,c$ for the sizes of important subsets.}
+\label{fig:sets}
+\end{figure}
 
-\subsection{Necessity of Approximation}
 \begin{framed}
-\textbf{Problem statement:} We want to compute $$I(x, s) = \left\{e \; | \; e \in \mathcal{I} \wedge f_{\{e\}} > s \right\}$$
+\begin{mydef}\label{def:jaccard}
+The normalized similarity between two sets $X$ and $Y$, known as \emph{resemblance} or \emph{Jaccard similarity}, denoted by R, is
+\begin{equation}
+R=\frac{\left| X \cap Y \right|}{\left| X \cup Y \right|} = \frac{a}{\left| X \right| + \left| Y \right| -a}=\frac{a}{a+b+c}
+\end{equation}
+\end{mydef}
 \end{framed}
 
-\begin{quote}
-Remark: sometimes frequency thresholds are expressed as a decimal or percentage and sometimes as some fraction $\frac{1}{k + 1}$. The fraction format is a bit more informative, because at most $k$ items can have a frequency greater than $\frac{1}{k + 1}$. Hence, the upper bound on the number of items above the threshold is immediately apparent.
-\end{quote}
+\paragraph{Other Notations}
+ 
+Later we often look at some important event of a problem where we use $\Pr[\cdot]$ as a shorthand for the \emph{Probability} of that event. To get an estimator for $R$ out of a probabilistic argument, we always use some Bernoulli experiment. This is a process, where we repeatedly flip a possibly biased coin, but the bias does not change. We can see it as a sequence of binary random variables, because only two outcomes are possible, $0$ or $1$. An event is described by an equation. We use the notation $1\left\lbrace \text{\textit{equation}} \right\rbrace$ which is one if and only if the \textit{equation} in curly braces is true:
+\begin{equation*}
+1\left\lbrace \text{\textit{equation}} \right\rbrace =\begin{cases}
+    1 & \text{if \textit{equation} evaluates to \textit{true}} \\
+    0 & \text{otherwise}
+\end{cases}
+\end{equation*}
 
-The obvious solution method is to build a histogram, from which we can calculate the frequencies of the items that appear in the stream. At most $m$ distinct items can appear in the stream so at most $m$ counters are required. An item can appear at most $n$ times so $\Theta(\log n)$ bits suffice to encode the counter values. The space complexity of such a method is therefore $O(m \log n)$. Clearly, we want to do better than that. But can we? Not by much as \cite{Cormode:2003:WHW:773153.773182} show in the following lemma.
+\pagebreak
 
-\begin{mylemma}
-Any algorithm which guarantees to find all and only items which have frequency greater than $\frac{1}{k + 1}$ must store $\Omega(m)$ bits.
-\end{mylemma}
+\section{Original Minwise Hashing}
 
-Furthermore, \cite{Karp:2003:SAF:762471.762473} propose and prove that any \textit{on-line} algorithm that solves this very same problem exactly needs to store $\Omega(m \log (\frac{n}{m}))$ bits in the worst case.
+Suppose a random permutation $\pi$ is performed on $\Omega$\footnote{We assume there is a perfect hash function applied to the elements of the original domain which always gives us $\Omega = \{0,1,\ldots,D-1\}$. Note that in the paper \citep{LiK11}, the hash function is applied after the permutation and the minimum-function, but it is simpler to understand this way.},
+\[
+\pi:\Omega \longrightarrow \Omega, \qquad \text{where } \Omega = \{0,1,\ldots,D-1\}.
+\]
 
-This is bad news if $m$, the size of the universe from which items can be drawn, is very large or infinite. The implications of these results are pretty clear. If we need a lower space bound, we must sacrifice accuracy. Fortunately, a multitude of algorithms have been conceived of to do just that.
+To simplify notation, we overload the definition of $\pi$ to work also for subsets of $\Omega$. Thus with $\pi(S_n)$ we denote the application of the permutation $\pi$ to every element of the set $S_n$. More precisely,
+\begin{equation*}
+\begin{split}
+\pi &: 2^\Omega \longrightarrow 2^\Omega, \\
+\pi &: S_n \longmapsto \pi \left( S_n \right) = \left\lbrace \pi \left( i \right) \middle\vert i \in S_n \right\rbrace. 
+\end{split}
+\end{equation*}
 
-\section{Overview of Algorithms}
-In this section, we will briefly discuss several algorithms that approximate frequency information in a single pass.
+We define
+\[
+h_{S_n,\pi}=min(\pi(S_n))
+\]
+to be the smallest element of set $S_n$ permuted with $\pi_j$. Note that the smallest element changes under the permutations because $\pi$ is a permutation on $\Omega$ and $S_n$ is only a subset of $\Omega$ in general.
 
-\begin{center}
-\begin{table*}[ht]
-{\scriptsize 
-\begin{tabular}{p{4.4cm} p{2.6cm} p{6cm} p{6cm}}
-%\begin{tabular}{|l|l|l|l|l|}
-\hline \textbf{Algorithm}  %& \textbf{Type} 
-& \textbf{Space complexity} 
-& \textbf{Pros} & \textbf{Cons} \\ 
-\hline Karp, Shenker %& Deterministic 
-& $O\left(\frac{1}{s}\right)$ 
-& Low memory usage.\newline Constant amortized time complexity per element. & No guarantees regarding false positives.\newline Requires two passes to find I(x,s) exactly.\newline Does not handle deletes.\newline Singleton streams only. \\ 
-\hline Manku, Motwani (StickySampling) %& Randomized 	
-& $O\left(\frac{1}{\varepsilon}\log \left(\frac{1}{s \cdot \delta}\right)\right)$ 
-& Strong guarantees. & Worse average space use than LossyCounting.\newline Does not handle deletes. \\ 
-\hline Manku, Motwani (LossyCounting) %& Deterministic 
-& $O\left(\frac{1}{\varepsilon}\log (\varepsilon \cdot n)\right)$ 
-& Strong guarantees.\newline Good average space complexity.\newline Can be extended to handle itemsets.  & Does not handle deletes. \\ 
-\hline Cormode, Muthukrishnan  %& Randomized 	
-& $O\left(\frac{1}{s} \log\left(\frac{1}{s\cdot \delta}\right) \log m\right)$ 
-& Handles deletes.\newline Moderate guarantees. & Singleton streams only.\newline False negatives possible.\newline Requires bijection to integers. \\ 
-\hline 
-%\end{tabular} 
+An elementary probability argument shows that for two sets $X,Y \subseteq \Omega$
+\begin{equation}\label{eq:minwiseOri}
+\Pr[h_{X,\pi}=h_{Y,\pi}]=\Pr [\min(\pi(X))=\min(\pi(Y))]=\frac{\left| X \cap Y \right|}{\left| X \cup Y \right|}=R.
+\end{equation}
 
-\end{tabular}
-}
-\caption{Algorithm comparison}
-\label{ComparisonTable}
-\end{table*}
-\end{center}
+We can now build an unbiased estimator $\hat{R}_M$ of $R$ with $k$ minwise independent permutations, $\pi_1,\pi_2,\ldots,\pi_k$:
+\begin{equation}
+\hat{R}_M=\frac{1}{k}\sum_{j=1}^k 1 \left\lbrace h_{X,\pi_j}=h_{Y,\pi_j} \right\rbrace,
+\end{equation}
+\begin{equation}\label{eq:minWiseVariance}
+Var(\hat{R}_M)=\frac{1}{k}R(1-R).
+\end{equation}
 
-\subsection{\cite{Karp:2003:SAF:762471.762473}}
-\cite{Karp:2003:SAF:762471.762473} describe a delightfully simple algorithm that, in a single pass, returns a superset $F \supseteq I(x, s)$ such that $|F| \leq \frac{1}{s}$, using only $O(\frac{1}{s})$ space. Moreover, the algorithm has constant amortized running time \footnote{That is, the average time needed to process an element in the data stream is constant. A rather novel data structure is required to achieve this}. The algorithm can be extended to compute $I(x, s)$ exactly by making a second pass over the data stream.
 
-The algorithm is a generalization of the following method for identifying a \textit{majority item}\footnote{An item with frequency greater than 50\%} within a sequence.
-\begin{enumerate}
-\item Pick two elements in the sequence that do not have the same value.
-\item Remove the two elements from the sequence.
-\item Repeat the previous two steps until it is no longer possible.
-\end{enumerate}
-If there was a majority item in the sequence, then the remaining sequence will be non-empty and only contain copies of the majority item.
 
-The generalized version maintains $\lfloor \frac{1}{s} \rfloor$ counters, which initially are set to 0. The first time the algorithm sees a particular item in the stream, it assigns a counter to it. When it sees an item, which already has an associated counter, it increments it. When all the counters have been assigned and an item with no assigned counter is encountered, the algorithm decrements \textbf{all} counters repeatedly by 1 until at least of them becomes 0, and then reassigns that counter to the new item. The set $F$ consists of those items which have an associated counter.
 
-While the generalized algorithm is guaranteed to return all items with frequency greater than $s$, it makes no guarantees about false positives. In fact, it may return up to $\lfloor \frac{1}{s} \rfloor$ items, even when $I(x, s) = \emptyset$. Moreover, it is not clear whether it is feasible to extend this algorithm to identify frequent itemsets. We will now consider two algorithms that provide better guarantees.
+\subsection{The Algorithm}
 
-\subsection{\cite{Manku02approximatefrequency}}
-\cite{Manku02approximatefrequency} describes two algorithms that both return a superset of $I(x, s)$, along with estimated frequencies of the items (or itemsets) returned. Both take as input a user-configurable error parameter $\varepsilon$. Moreover, both of the algorithms provide the following guarantees:
-\begin{enumerate}
-\item All items whose true frequency exceeds $s$ are output.
-\item No item whose true frequency is less than $s - \varepsilon$ is output.
-\item Estimated frequencies are less than the true frequencies by at most $\varepsilon$.
-\end{enumerate}
+Based on the theoretical results, Algorithm \vref{alg:orgMinwiseHashing} presents the procedure of ($k$-permutation) \textsc{Minwise Hashing}.
 
-One algorithm, \textsc{StickySampling}, is randomized and takes an additional parameter $\delta$. It satisfies the aforementioned guarantees with probability at least $1-\delta$. It samples elements from the stream with a certain probability. Once an item has been sampled, a counter is maintained for it. At certain intervals, which grow exponentially with the number of elements scanned, the sampling probability is halved and the counters in the summary data structure adjusted, as if the new sampling rate had been used from the beginning. Elements whose counter reaches 0 are ejected from the data structure.
-
-The other algorithm, \textsc{LossyCounting}, is deterministic and always satisfies the guarantees which we laid out before. It is similar to \textsc{StickySampling}, in that it maintains a summary data structure with counters for certain elements in the stream. The difference is that \textsc{LossyCounting} adds all items to the data structure as they are encountered and then prunes it at intervals, whose size remain the same while the stream is scanned. The size of the intervals determines how aggressively the algorithm prunes its summary data structure, and is determined by error parameter $\varepsilon$. 
-
-In the worst case, \textsc{LossyCounting} stores $\frac{1}{\varepsilon}\log (\varepsilon \cdot n)$ entries. Clearly, this is inferior to the bound that \textsc{StickySampling} achieves, but appearances can be deceiving. The worst case scenario for \textsc{StickySampling} is a stream with no duplicates. In contrast, the worst case for \textsc{LossyCounting} is a somewhat pathological stream, which is highly unlikely to occur under natural circumstances. If the data stream consists of elements drawn independently from a fixed probability distribution, the expected number of entries stored is less than $\frac{7}{\varepsilon}$. That is a remarkable result.
-
-The authors subjected both algorithms to a series of empirical tests and in all of them \textsc{LossyCounting} used only a fraction of the memory that  \textsc{StickySampling} did. Furthermore, the authors also detail an extended implementation of \textsc{LossyCounting} which can identify high-frequency itemsets in a non-singleton data stream. Out of the four papers I studied, this was the only one that provided an algorithm with this capability. Because of that, we will take a closer look at \textsc{LossyCounting} later on.
-
-It should be noted that the authors only provide analysis of their algorithms for singleton data streams. The extended itemset implementation of \textsc{LossyCounting} behaves a bit differently than the one analysed. Furthermore, the number of possible subsets of $\mathcal{I}$ is $2^{|\mathcal{I}|}$, so there is potential for an exponential growth in space complexity over that of the singleton case.
-
-\subsection{\cite{Cormode:2003:WHW:773153.773182}}
-All of the algorithms we've considered so far have focused on \textit{insert-only} types of streams. An algorithm by \cite{Cormode:2003:WHW:773153.773182} can handle streams consisting of both inserts and deletes.
-
-The fundamental principle behind the algorithm is to segment the item universe $\mathcal{I}$ into groups, each with its own counter that is incremented whenever an item, belonging to the group is inserted and decrement it when an item is deleted. A series of tests, which check whether a group contains a high-frequency item, are then made to identify the items whose relative frequency is above the threshold $s$.
-
-As a gentle introduction, the authors provide an example for identifying a majority item in a stream of integers drawn from $[0, m-1]$. One counter $c$ is incremented for every insert and decremented for every delete, thus tracking the number of \textit{live} items. $\lfloor \log_2(m) \rfloor + 1$ counters $c_j$ are then maintained, one for each bit positions in the binary representation of the integers. When an integer $i$ is inserted or deleted, the binary representation of $i$ is inspected and counters corresponding to the position of 1 bits are modified. If there is a majority item in the stream, it is given by the following formula
-$$
-\sum_{j=1}^{\lceil \log_2 m \rceil} 2^j gt(c_j, c/2)
-$$
-where $gt(i, j)$ is an indicator function that returns 1 if $i > j$ and 0 otherwise. Every summand corresponds to an individual group test. If there is some majority item $i$, then clearly $gt(c_j, c/2) = 0$ for those bit positions $j$ that are 0 in the binary representation of $i$ and $gt(c_j, c/2) = 1$ for those bits that are 1.
-
-The algorithm generalizes this method to identify the items in $I(x, s)$. It is a bit more complex, and involves the use of hash functions to generate $\frac{1}{s}\log (\frac{1}{s})$ groups in a pseudo-random fashion. Those groups are then split up into $\log(m)$ subgroups.
-
-Being randomized, this algorithm provides probabilistic guarantees. With probability at least $1-\delta$ it finds all items in $I(x, s)$. Moreover, if the frequency distribution is such that low-frequency items do not feature prominently\footnote{That is, if the sum of the frequencies of all items, except the $1/s$ most frequent items, is less than $s$.}, the algorithm is guaranteed not to output false positives.
-
-Again, it is not entirely clear whether this algorithm can easily be extended to handle itemsets. The fundamental item representation of this algorithm is an integer. As such, the algorithm requires there to be a bijection from $\mathcal{I}$ to a finite interval of integers. If we were to enumerate all subsets of $\mathcal{I}$ we would need $2^{|\mathcal{(I)}|}$ integers and then the space and time bounds become linear in $|\mathcal{(I)}|$.
-
-\section{\textsc{LossyCounting}}\label{LossyCounting}
-We will now take a closer look at the \textsc{LossyCounting} algorithm. First we will constrain ourselves to singleton data streams and then we will consider the more complicated itemset version.
-
-\subsection{Singleton Version}
-
-\textsc{LossyCounting} maintains a summary data structure $D$ with entries of the form $(i, c, \Delta)$, where $i \in \mathcal{(I)}$, $c$ is the estimated number of occurrences of $i$ in the stream and $\Delta$ is the maximum error of that estimate. The stream is conceptually split up into \textit{buckets}\footnote{\textit{Windows} would perhaps be a more suitable term to avoid confusion with histogram buckets.} of width $\lceil \frac{1}{\varepsilon} \rceil$. The buckets are numbered from 1 to $\lceil \frac{n}{\varepsilon} \rceil$ and a variable named $b_{current}$ keeps track of the current bucket number.
-
-When \textsc{LossyCounting} encounters an item $i$ that is not already in $D$, it adds $(i, 1, b_{current} - 1)$ to $D$. Otherwise it simply increments its counter $c$. Whenever the algorithm reaches a bucket boundary, it removes all entries from $D$ having $c + \Delta \leq b_{current}$. The output of the algorithm is the set of items in $D$ having $c \geq (s-\varepsilon)\cdot n$. A complete pseudocode version\footnote{Based on pseudocode from http://www.mathcs.emory.edu/\textasciitilde cheung/Courses/584-StreamDB/Syllabus/07-Heavy/Manku.html} of \textsc{LossyCount} is given in Algorithm \ref{LossyCountingAlg}.
-
-\begin{algorithm}
-\caption{\textsc{LossyCounting}}
-\label{LossyCountingAlg}
+\begin{algorithm}[H]
+\caption{Original \textsc{Minwise Hashing} algorithm, applied to estimating pairwise resemblances in a collection of $N$ sets.}
+\label{alg:orgMinwiseHashing}
 \begin{algorithmic}
-\Require Frequency threshold $s$, acceptable error $\varepsilon$
-\Ensure A superset of $I(x, s)$
-\State // Initialization
-\State $D$ := $\emptyset$	\Comment Empty hash table, indexed by $i \in \mathcal{(I)}$
-\State $b_{current} := 1$	\Comment Current bucket number
-\State $w := \lceil\frac{1}{\varepsilon} \rceil$ \Comment Bucket width
-\State $n := 0$				\Comment Number of elements processed
-
-\State // Main processing loop
-\While{not end of stream}
-	\State $i$ := next item in stream
-	\State $n := n + 1$
-	\State // Insert phase
-	\If{$i \in D$}
-		\State $D[i].c := D[i].c + 1$
-	\Else
-		\State $D.$insert$(i, \{c := 1, \Delta := b_{current} - 1 \})$
-	\EndIf
-	\State // Pruning phase. Executed once for every $w$ elements.
-	\If{$n$ mod $w = 0$}
-		\ForAll{$j \in D$}
-			\If{$D[j].c + D[j].\Delta \leq b_{current}$}
-				\State $D.$remove($j$)
-			\EndIf
-		\EndFor
-		\State $b_{current} := b_{current} + 1$
-	\EndIf
-\EndWhile
-\State // Output phase
-\ForAll{$j \in D$}
-	\If{$D[j].c \geq (s - \varepsilon) \cdot n$}
-		\State $f_j := \frac{D[j].c}{n}$ \Comment{Calculate the estimated frequency of $j$}
-		\State \textbf{print}$(j, f_j)$
-	\EndIf
+\Require Sets $S_n \subseteq \Omega = \{0,1,\ldots,D-1\}, n = 1 \text{ to } N$. \Comment $D = \left| \Omega \right|$
+\Ensure Estimated resemblance $\hat{R}_M$
+\State // Pre-processing
+\State Generate $k$ random permutations $\pi_j: \Omega\longrightarrow\Omega, j=1\text{ to }k$
+\ForAll{$n = 1 \text{ to } N, j = 1 \text{ to } k$}
+	\State Store $\min(\pi_j(S_n))$, denoted by $h_{S_n,\pi_j}$.
 \EndFor
+\State
+\State // Estimation (Use two sets $X,Y$ as an example)
+\State Estimate the resemblance by $\hat{R}_M=\frac{1}{k}\sum_{j=1}^k 1 \left\lbrace h_{X,\pi_j}=h_{Y,\pi_j} \right\rbrace$
 \end{algorithmic}
 \end{algorithm}
 
-This is not a very complicated algorithm, yet it's not immediately apparent why it works. First, let us observe that while the frequency count of an item may be underestimated, it is never overestimated. Hence, the error is one-sided and can only result in false positives; not false negatives. Another key observation is that the true frequency count of an item is at least $c$ and at most $c + \Delta$. It follows that when an entry is removed from $D$, its true frequency count is at most $c + \Delta \leq b_{current} \leq \varepsilon \cdot n$. Hence, it is guaranteed that the loss of accuracy, which results from removing an entry, is within the acceptable margin of error.
 
-\textsc{LossyCounting} is effectively an algorithm with two frequency thresholds; $s$, above which lie the items we want to identify and $\varepsilon$, below which we don't bother to maintain accurate frequency counts.
 
-\subsection{Itemset Version}
-We now turn our focus to data stream consisting of sets of items, which we will refer to as \textit{transactions}. In this setting, entries in $D$ have the form $(set, c, \Delta)$. The goal is to identify subsets of $\mathcal{I}$ that occur frequently within the transactions. In particular, this means that we have to maintain frequency counts not only for unique transactions, but also the subsets of the transactions. Clearly, the number of subsets to track can be exponential in the size of $\mathcal{I}$ and certain counter-measures are required to address this problem.
 
-The first counter-measure exploits the fact that subsets of frequent itemsets are also frequent. Conversely, supersets of infrequent itemsets are also infrequent. This is the so called \textit{downward-closure property} of support and it allows us to safely ignore all supersets of itemsets, which have a relative frequency below $\varepsilon$.
 
-The second counter-measure involves reading the stream into a memory buffer and process the buckets in batches of size $\beta$. Subsets are only added to $D$ if their frequency count within the batch is at least $\beta$. This modified insertion method prevents infrequent subsets from entering $D$, if it is clear that they will be removed at a later pruning phase.
 
-Manku and Motwani separated their itemset version of \textsc{LossyCounting} into three modules:
-\begin{itemize}
-\item A \textsc{Buffer} module that reads the transactions into main memory.
-\item A \textsc{SetGen} module that generates subsets of the current batch and tracks their frequencies.
-\item A \textsc{Trie} module that maintains a compact representation of $D$ on disk.
-\end{itemize}
 
-In their paper, the authors provide a rather detailed description of their implementation. They discuss and justify certain design decisions, the \textsc{Trie} data structure and how to optimize the algorithm using UNIX system calls. They also perform empirical tests to compare its performance to that of \textsc{Apriori}, which is a well known algorithm for association rule learning. Their results show that \textsc{LossyCounting} compares favourably, both in terms of speed and memory consumption.
+\section{One Permutation Hashing}
 
-\section{Conclusions}
-We have explored four algorithms, all of which approximate the set of items exceeding a certain frequency threshold $s$, with a single pass over the data and  using memory that is sublinear in the size of the data stream and the item universe $\mathcal{I}$. The algorithms vary in their implementation complexity, the amount of memory they use and the guarantees that they make about the quality of their output. 
+This algorithm is directly motivated by the optimization potential of the standard \textsc{Minwise Hashing} method: intuitively, it ought to be ``wasteful'' in that all elements in a set are permuted, scanned but only the minimum will be used. As the name already suggests, we reduce the preprocessing step to only one permutation.
 
-Only one of those algorithms, \textsc{LossyCounting}, has been extended to identify frequent itemsets in a stream of transactions. It was the first algorithm capable of doing so in a single pass while providing user-specified error guarantees. Its simplicity and efficiency are quite appealing. 
+We will setup a running example with $X,Y,Z \subseteq \Omega = \left\lbrace 0,1,\cdots,15\right\rbrace$. Let be $\pi$ some random permutation on $\Omega$ and the already permuted sets be
+\[
+\pi(X)=\left\lbrace 2,4,7,13\right\rbrace, \quad \pi(Y)=\left\lbrace 0,3,6,13\right\rbrace,\quad \pi(Z)= \left\lbrace 0,1,10,12\right\rbrace.
+\]
+Now again we build up a data matrix where the rows are equal to the vector representations of the permuted sets:
 
-Certain variations of \textsc{LossyCounting} have appeared since it was first described over a decade ago. Those include Probabilistic Lossy Counting \citep{dimitropoulos2008probabilistic} and Mnemonic Lossy Counting \citep{rong2010mnemonic}. Due to its usefulness in association rule learning, it is covered in prominent texts on Data Mining, such as the one by Han and Kamber.
+\begin{equation}
+\begin{tikzpicture}[baseline = (M.center),% center with respect to the matrix center
+        every left delimiter/.style={xshift=1ex},%tighter delimiter spacing
+        every right delimiter/.style={xshift=-1ex}]
+\matrix (M) [matrix of math nodes,left delimiter={(},right delimiter={)} 
+        ]{ 
+0&0&1&0&1&0&0&1&0&0&0&0&0&1&0&0\\
+1&0&0&1&0&0&1&0&0&0&0&0&0&1&0&0\\
+1&1&0&0&0&0&0&0&0&0&1&0&1&0&0&0\\
+};
+\node[anchor=south east] (cornernode) at (M-1-1.north west) {Sets: \qquad \qquad}; %Position this more precisely if desired
+\foreach[count=\xi] \x in {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15}{ %\xi is the counter \x is the value
+\node[font=\scriptsize] (M-0-\xi) at (cornernode -| M-1-\xi) {\x}; % Gets the top row 
+}
 
-\bibliographystyle{plainnat}
+\foreach[count=\xi] \x in {$\pi(X)$:,$\pi(Y)$:,$\pi(Z)$:}{ %\xi is the counter \x is the value
+\node (M-\xi-0) at (cornernode |- M-\xi-1) {\x}; %Gets the left most column
+}
+
+\draw[decoration=brace,decorate] (M-0-1.north west) -- (M-0-16.north east)%
+ node[midway,above] {$\Omega$};
+
+\end{tikzpicture}
+\end{equation}
+
+The idea is to divide the columns evenly into $t$ (here $t=4$) bins (parts), take the minimum in each bin. Because later we only compare minima within one bin, we can re-index the elements to use the smallest possible representation:
+
+\begin{equation} \label{matrix:complete}
+\begin{tikzpicture}[baseline = (M.center),% center with respect to the matrix center
+        every left delimiter/.style={xshift=1ex},%tighter delimiter spacing
+        every right delimiter/.style={xshift=-1ex}]
+\matrix (M) [matrix of math nodes,left delimiter={(},right delimiter={)} 
+        ]{ 
+0&0&1&0&1&0&0&1&0&0&0&0&0&1&0&0\\
+1&0&0&1&0&0&1&0&0&0&0&0&0&1&0&0\\
+1&1&0&0&0&0&0&0&0&0&1&0&1&0&0&0\\
+};
+\node[anchor=south east] (cornernode) at (M-1-1.north west) {Sets: \qquad \qquad}; %Position this more precisely if desired
+\foreach[count=\xi] \x in {0,1,2,3,0,1,2,3,0,1,2,3,0,1,2,3}{ %\xi is the counter \x is the value
+\node[font=\scriptsize] (M-0-\xi) at (cornernode -| M-1-\xi) {\x}; % Gets the top row 
+}
+\foreach[count=\xi] \x in {$\pi(X)$:,$\pi(Y)$:,$\pi(Z)$:}{ %\xi is the counter \x is the value
+\node (M-\xi-0) at (cornernode |- M-\xi-1) {\x}; %Gets the left most column
+}
+\node[below left = 0.1pt of M-3-3.south] {bin $1$};
+\node[below left = 0.1pt of M-3-7.south] {bin $2$};
+\node[below left = 0.1pt of M-3-11.south] {bin $3$};
+\node[below left = 0.1pt of M-3-15.south] {bin $4$};
+
+\draw[decoration=brace,decorate] (M-0-1.north west) -- (M-0-4.north east)%
+ node[midway,above] {$\Omega'$};
+\draw[decoration=brace,decorate] (M-0-5.north west) -- (M-0-8.north east)%
+ node[midway,above] {$\Omega'$};
+\draw[decoration=brace,decorate] (M-0-9.north west) -- (M-0-12.north east)%
+ node[midway,above] {$\Omega'$};
+\draw[decoration=brace,decorate] (M-0-13.north west) -- (M-0-16.north east)%
+ node[midway,above] {$\Omega'$};
+
+\begin{scope}[on background layer]
+\draw [fill=black!10] (M-1-1.north west) rectangle (M-3-4.south east);
+\draw [fill=black!10] (M-1-5.north west) rectangle (M-3-8.south east);
+\draw [fill=black!10] (M-1-9.north west) rectangle (M-3-12.south east);
+\draw [fill=black!10] (M-1-13.north west) rectangle (M-3-16.south east);
+\draw [draw=red] (M-1-3.center) circle (1.5ex);
+\draw [draw=red] (M-2-1.center) circle (1.5ex);
+\draw [draw=red] (M-3-1.center) circle (1.5ex);
+\draw [draw=red] (M-1-5.center) circle (1.5ex);
+\draw [draw=red] (M-2-7.center) circle (1.5ex);
+\draw [draw=red] (M-3-11.center) circle (1.5ex);
+\draw [draw=red] (M-1-14.center) circle (1.5ex);
+\draw [draw=red] (M-2-14.center) circle (1.5ex);
+\draw [draw=red] (M-3-13.center) circle (1.5ex);
+\end{scope}
+\end{tikzpicture}
+\end{equation}
+
+We get the minima-vectors
+\begin{equation}
+\begin{split}
+v_X=[2,0,*,1],\\
+v_Y=[0,2,*,1],\\
+v_Z=[0,*,2,0],\\
+\end{split}
+\end{equation}
+where '$*$' denotes an empty bin.
+
+To derive the \emph{resemblance} between two sets, e.g. $X,Y$, we introduce two definitions:
+\begin{equation} \label{eq:defEmpjMatj}
+\begin{split}
+\text{number of ``jointly empty bins'':} \qquad & N_{emp}=\sum_{j=1}^t I_{emp,j}, \\
+\text{number of ``matched bins'':} \qquad & N_{mat}=\sum_{j=1}^t I_{mat,j},\\
+\end{split}
+\end{equation}
+where $I_{emp,j}$ and $I_{mat,j}$ are defined for the $j$-th bin, as
+\begin{equation} \label{eq:defEmpMat}
+\begin{split}
+  I_{emp,j} &=\begin{cases}
+    1 & \text{if both $\pi(X)$ and $\pi(Y)$ are empty in the $j$-th bin} \\
+    0 & \text{otherwise}
+  \end{cases}\\
+  I_{mat,j} &=\begin{cases}
+    1 & \text{if both $\pi(X)$ and $\pi(Y)$ are not empty and the smallest} \\
+      & \text { elements in the $j$-th bin matches, i.e. $(v_X)_j=(v_Y)_j$} \\
+    0 & \text{otherwise}
+  \end{cases}
+\end{split}
+\end{equation}
+
+\pagebreak
+
+\subsection{The Estimator}
+
+We formulate the estimator as 
+\begin{framed}
+\begin{mylemma} \label{lem:onePermutationHashing}
+The \emph{resemblance} is estimated by
+\begin{equation}
+\hat{R}_{mat}=\frac{N_{mat}}{k-N_{emp}}
+\end{equation}
+is unbiased, i.e.
+\begin{equation}
+\E\left[\hat{R}_{mat}\right]=R.
+\end{equation}
+\end{mylemma}
+\end{framed}
+
+In our example we have $N_{emp}=1$ and $N_{mat}=1$. Thus $\hat{R}_{mat}=1/3$.
+
+
+Empirical results show that the \textsc{One Permutation Hashing} scheme performs as well or even slightly better than the \textsc{b-bit k-permutation hashing} scheme.
+
+\begin{table}[h]
+{
+\begin{tabulary}{1\textwidth}{LLL}
+\hline \textbf{Space used for \ldots}
+& storing permutation(s) & storing pre-processing data per set \\
+\hline Na\"{i}ve approach (store whole sets) & --- & $O(D)$ \\
+\hline original \textsc{Minwise Hashing} & $O(kD\log(D))$ & $O(k\log(D))$ \\
+\hline \textsc{b-bit Minwise Hashing} & $O(kD\log(D))$ & $O(kb)$ \\
+\hline \textsc{One Permutation Hashing} & $O(D\log(D))$ & $O(t \log(D/t))$ \\
+\hline
+\end{tabulary}
+}
+\caption{Algorithm comparison. We only list the space complexity because the processing time boundaries are given by the time needed to read the stored data at least once and hence is dominated by the space complexity.}
+\label{table:comparison}
+\end{table}
+
+\bibliographystyle{unsrt}
 \bibliography{Bibliography}
 
 \end{document}
