@@ -1,6 +1,6 @@
 \documentclass[a4paper]{article}
 \author{Simon Wehrli}
-\date{28.4.2013}
+\date{10.5.2013}
 \title{Set similarity with b-bit k-permutation Minwise Hashing - DRAFT}
 
 \usepackage[parfill]{parskip}
@@ -29,6 +29,8 @@
 \newtheorem{mydef}{Definition}
 \newtheorem{mylemma}{Lemma}
 \newtheorem{mytheorem}{Theorem}
+
+\newcommand*{\bfrac}[2]{\genfrac{\lbrace}{\rbrace}{0pt}{}{#1}{#2}}
 
 \begin{document} 
 \maketitle
@@ -114,9 +116,58 @@ This web page is just an example.
 
 Clearly, the number of possible shingles and therefore $D$ is huge. Assume $10^5$ different English words, we have $D=\left(10^5\right)^5$. Thus computing the exact similarities for all pairs of pages of a web search would require prohibitive storage. For a single pair, we would already need $\Theta(D)$ storage.
 
-\subsection{Original Minwise Hashing}
+\section{Original Minwise Hashing}
 
-A working approximative solution to this problem was described by Broder and his colleagues \citep{Broder:1998,BroderGMZ97}. Their algorithm is based on the following observation:
+A working approximative solution to this problem was described by Broder and his colleagues \citep{Broder:1998,BroderGMZ97}. We demonstrate their algorithm on a small running example. Suppose we have two web pages $P_X$ and $P_Y$ and want to compare them:
+
+\begin{figure}[H]
+\begin{center}
+\fbox{
+\parbox{2cm}{
+u v u v
+}
+}
+\hspace{1cm} $\underleftrightarrow{\text{similar?}}$ \hspace{1cm}
+\fbox{
+\parbox{2cm}{
+w v u
+}
+}
+\end{center}
+\end{figure}
+
+We map both pages to sets of length-$2$-shingles. So $P_X$ becomes $\{ \text{``uv''}, \text{``vu''} \}$ and $P_Y$ becomes $\{ \text{``wv''}, \text{``vu''} \}$. Note that the mapping is indifferent to that ``uv'' occurs twice on $P_X$. When we continuously  number all possible shingles $\{ \text{``uu''}, \text{``uv''}, \text{``uw''}, \text{``vu''}, \text{``vv''}, \text{``vw''}, \text{``wu''}, \text{``wv''}, \text{``ww''},  \}$ and define this to be $\Omega$, we can visualize sets in a binary matrix
+\begin{equation*}
+M \in \{ 0,1 \}^{N \times D}, \qquad M_{ni}=1\left\lbrace i \in S_n \right\rbrace.
+\end{equation*}
+
+Applied to our example, we get
+
+\begin{equation}
+M= 
+\begin{tikzpicture}[baseline = (M.center),% center with respect to the matrix center
+        every left delimiter/.style={xshift=1ex},%tighter delimiter spacing
+        every right delimiter/.style={xshift=-1ex}]
+\matrix (M) [matrix of math nodes,left delimiter={(},right delimiter={)} 
+        ]{ 
+0&1&0&1&0&0&0&0&0\\
+0&0&0&1&0&0&0&1&0\\
+};
+\node[anchor=south east] (cornernode) at (M-1-1.north west) {Sets: \qquad \qquad}; %Position this more precisely if desired
+\foreach[count=\xi] \x in {0,1,2,3,4,5,6,7,8}{ %\xi is the counter \x is the value
+\node[font=\scriptsize] (M-0-\xi) at (cornernode -| M-1-\xi) {\x}; % Gets the top row 
+ }
+
+\foreach[count=\xi] \x in {$X$:,$Y$:}{ %\xi is the counter \x is the value
+\node (M-\xi-0) at (cornernode |- M-\xi-1) {\x}; %Gets the left most column
+}
+
+\draw[decoration=brace,decorate] (M-0-1.north west) -- (M-0-9.north east)%
+ node[midway,above] {$\Omega$};
+
+\end{tikzpicture}
+\end{equation}
+
 
 Suppose a random permutation $\pi$ is performed on $\Omega$\footnote{We assume there is a perfect hash function applied to the elements of the original domain which always gives us $\Omega = \{0,1,\ldots,D-1\}$. Note that in the paper \citep{LiK11}, the hash function is applied after the permutation and the minimum-function, but it is simpler to understand this way.},
 \[
@@ -133,22 +184,22 @@ To simplify notation, we overload the definition of $\pi$ to work also for subse
 
 A key role play the minima of the permuted sets:
 \[
-e_{S_n,\pi}=min(\pi(S_n))
+h_{S_n,\pi}=min(\pi(S_n))
 \]
 
 We use $\Pr[\cdot]$ as a shorthand for the \emph{Probability} of some event. An elementary probability argument shows that for two sets $X,Y \subseteq \Omega$
 \begin{equation}\label{eq:minwiseOri}
-\Pr[e_{X,\pi}=e_{Y,\pi}]=\Pr [\min(\pi(X))=\min(\pi(Y))]=\frac{\left| X \cap Y \right|}{\left| X \cup Y \right|}=R.
+\Pr[h_{X,\pi}=h_{Y,\pi}]=\Pr [\min(\pi(X))=\min(\pi(Y))]=\frac{\left| X \cap Y \right|}{\left| X \cup Y \right|}=R.
 \end{equation}
 
 We can now build an unbiased estimator $\hat{R}_M$ of $R$ with $k$ minwise independent permutations, $\pi_1,\pi_2,\ldots,\pi_k$:
 \begin{equation}
-\hat{R}_M=\frac{1}{k}\sum_{j=1}^k 1 \left\lbrace e_{X,\pi_j}=e_{Y,\pi_j} \right\rbrace,
+\hat{R}_M=\frac{1}{k}\sum_{j=1}^k 1 \left\lbrace h_{X,\pi_j}=h_{Y,\pi_j} \right\rbrace,
 \end{equation}
 \begin{equation}\label{eq:minWiseVariance}
 Var(\hat{R}_M)=\frac{1}{k}R(1-R).
 \end{equation}
-We later refer to $e_{S_n,\pi_j}$ as a \textbf{sample} and to $k$ as the \textbf{sample size}. To store a \textbf{sample} may require e.g., $64$ bits. Note that the minimum function $\min(\cdot)$ needs $O(D)$ time and constant space and can be precomputed for each set $S_n$ and permutation $\pi_j$.\footnote{A detailed runtime analysis will follow for the improved algorithm in section \vref{sec:b-bitDrawbacks}}
+We later refer to $h_{S_n,\pi_j}$ as a \textbf{sample} and to $k$ as the \textbf{sample size}. To store a \textbf{sample} may require e.g., $64$ bits. Note that the minimum function $\min(\cdot)$ needs $O(D)$ time and constant space and can be precomputed for each set $S_n$ and permutation $\pi_j$.\footnote{A detailed runtime analysis will follow for the improved algorithm in section \vref{sec:b-bitDrawbacks}}
 
 Many applications, especially duplicate detection, are interested in detecting somewhat high similarity, thus an approximation seems reasonable. From equation \vref{eq:minWiseVariance} we learn, that the accuracy can be adjusted by choosing the \textbf{sample size} appropriately.
 
@@ -163,16 +214,16 @@ For example, when $b=1$ and $R=0.5$, the estimation variance will increase at mo
 
 Consider again two sets $X,Y \subseteq \Omega$, on which a random permutation $\pi: \Omega \longrightarrow \Omega$ is applied. We extend our notation with
 \[
-e_{X,b,\pi}=b \text{ lowest bits of } \min(\pi(X))
+h_{X,b,\pi}=b \text{ lowest bits of } \min(\pi(X))
 \]
 \[
-e_{Y,b,\pi}=b \text{ lowest bits of } \min(\pi(Y))
+h_{Y,b,\pi}=b \text{ lowest bits of } \min(\pi(Y))
 \]
 \begin{framed}
 \begin{mytheorem} \label{the:b-bitMinwiseHashing}
 Assume $D$ is large.
 \begin{equation}\label{eq:minwiseB-bit}
-P_b=\Pr[1\left\lbrace e_{X,b,\pi}=e_{Y,b,\pi}\right\rbrace]=C_{1,b}+(1-C_{2,b})R
+P_b=\Pr[1\left\lbrace h_{X,b,\pi}=h_{Y,b,\pi}\right\rbrace]=C_{1,b}+(1-C_{2,b})R
 \end{equation}
 \begin{equation}
 r_X=\frac{|X|}{D}, \qquad r_Y=\frac{|Y|}{D}
@@ -189,7 +240,7 @@ A_{X,b}=\frac{r_X[1-r_X]^{2^b-1}}{1-[1-r_X]^{2^b}}, \qquad A_{Y,b}=\frac{r_Y[1-r
 \end{mytheorem}
 \end{framed}
 
-The intuition for the additional terms $C_{1,b}$ and $C_{2,b}$ in \vref{eq:minwiseB-bit} compared to \vref{eq:minwiseOri} is that we have to account for a type of ``false positive'': When two minima agree on their last $b$ bits, $e_{X,b,\pi}=e_{Y,b,\pi}$, it's still possible that their are different, $e_{X,\pi}\neq e_{Y,\pi}$. Thus even when $R=0$, the collision probability $P_b$ is not zero, but rather $C_{1,b}$. This makes the derivation much more complicated.\footnote{A proof of Theorem \vref{the:b-bitMinwiseHashing} can be found in the appendix of \citep{LiK09}.}
+The intuition for the additional terms $C_{1,b}$ and $C_{2,b}$ in \vref{eq:minwiseB-bit} compared to \vref{eq:minwiseOri} is that we have to account for a type of ``false positive'': When two minima agree on their last $b$ bits, $h_{X,b,\pi}=h_{Y,b,\pi}$, it's still possible that their are different, $h_{X,\pi}\neq h_{Y,\pi}$. Thus even when $R=0$, the collision probability $P_b$ is not zero, but rather $C_{1,b}$. This makes the derivation much more complicated.\footnote{A proof of Theorem \vref{the:b-bitMinwiseHashing} can be found in the appendix of \citep{LiK09}.}
 
 Even though $D$ is assumed to be large, experiments show that even for $D=20$ the absolute error caused by using \vref{eq:minwiseB-bit} ist $< 0.01$.
 
@@ -200,7 +251,7 @@ From \vref{eq:minwiseB-bit} of Theorem \vref{the:b-bitMinwiseHashing} we derive 
 \hat{R}_b=\frac{\hat{P}_b-C_{1,b}}{1-C_{2,b}}
 \end{equation}
 \begin{equation}
-\hat{P}_b = \frac{1}{k}\sum_{j=1}^k 1 \left\lbrace  e_{X,b,\pi_j } = e_{Y,b,\pi_j } \right\rbrace
+\hat{P}_b = \frac{1}{k}\sum_{j=1}^k 1 \left\lbrace  h_{X,b,\pi_j } = h_{Y,b,\pi_j } \right\rbrace
 \end{equation}
 
 This estimator is unbiased, i.e. $\E[\hat{R}_b]=R$. Furthermore, the variance of $\hat{R}_M$ converges to the variance of $\hat{R}_b$, i.e.
@@ -221,11 +272,11 @@ Based on the theoretical results, Algorithm \vref{alg:minwiseHashing} presents t
 \State // Pre-processing
 \State Generate $k$ random permutations $\pi_j: \Omega\longrightarrow\Omega, j=1\text{ to }k$
 \ForAll{$n = 1 \text{ to } N, j = 1 \text{ to } k$}
-	\State Store the lowest $b$ bits of $\min(\pi_j(S_n))$, denoted by $e_{S_n,b,\pi_j}$.
+	\State Store the lowest $b$ bits of $\min(\pi_j(S_n))$, denoted by $h_{S_n,b,\pi_j}$.
 \EndFor
 \State
 \State // Estimation (Use two sets $X,Y$ as an example)
-\State Compute $\hat{P}_b = \frac{1}{k}\sum_{j=1}^k 1 \left\lbrace  e_{X,b,\pi_j } = e_{Y,b,\pi_j } \right\rbrace$
+\State Compute $\hat{P}_b = \frac{1}{k}\sum_{j=1}^k 1 \left\lbrace  h_{X,b,\pi_j } = h_{Y,b,\pi_j } \right\rbrace$
 \State Estimate the resemblance by $\hat{R}_b = \frac{\hat{P}_b-C_{1,b}}{1-C_{2,b}}$, where $C_{1,b}$ and $C_{2,b}$ are from Theorem \vref{the:b-bitMinwiseHashing}
 \end{algorithmic}
 \end{algorithm}
