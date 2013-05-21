@@ -6,6 +6,7 @@
 \usepackage[parfill]{parskip}
 \usepackage{tikz} % for drawing advanced matrices
 \usepackage{amsmath}
+\usepackage{amssymb} % e.g. for triangle symbols
 \usepackage{amsthm}
 \usepackage{algorithm}
 \usepackage{algorithmicx}
@@ -103,7 +104,7 @@ Later we often look at some important event of a problem where we use $\Pr[\cdot
 \end{equation*}
 
 \subsection{Motivating Example}
-Consider a web search provider, which want to present a result list of web pages without duplicates. To achieve that, for every pair of web pages, we drop one of them, if they are textually very similar. This is the case when their \emph{resemblance} $R$ is greater than some threshold $R_0$. But to be able to use the \emph{resemblance} as a measurement, we have to map each page to a set. One could imagine to define this mapping from the page to the set of all words occurring on the page. As in several studies \citep{Broder:1998,BroderGMZ97} we will instead map a page to a set of \emph{shingles}. A shingle is a string of $w$ contiguous words, and we include a \emph{shingle} in our result set if the \emph{shingle} occurs on the page (in the same order). Typically we choose $w = 5$. Figure \vref{fig:shingle} shows an exemplary mapping.
+Consider a web search provider, which want to present a result list of web pages without duplicates. To achieve that, for every pair of web pages, we drop one of them, if they are textually very similar. This is the case when their \emph{resemblance} $R$ is greater than some threshold $R_0$. But to be able to use the \emph{resemblance} as a measurement, we have to map each page to a set. One could imagine to define this mapping from the page to the set of all words occurring on that page. But with this mapping would not keep track of the order in which their appear. As in several studies \citep{Broder:1998,BroderGMZ97} we will instead map a page to a set of \emph{shingles}. A shingle is a string of $w$ contiguous words, and we include a \emph{shingle} in our result set if the \emph{shingle} occurs on the page (in the same order). Typically we choose $w = 5$. Figure \vref{fig:shingle} shows an exemplary mapping.
 
 \begin{figure}[H]
 \begin{center}
@@ -125,7 +126,7 @@ This web page is just an example.
 \label{fig:shingle}
 \end{figure}
 
-Clearly, the number of possible shingles and therefore $D$ is huge. Assume $10^5$ different English words, we have $D=\left(10^5\right)^5$. Thus computing the exact similarities for all pairs of pages of a web search would require prohibitive storage. For a single pair, we would already need $\Theta(D)$ storage.
+Clearly, the number of possible shingles and therefore $D$ is huge. Assuming $10^5$ different English words, we have $D=\left(10^5\right)^5 \gg 2^{64}$. Thus computing the exact similarities for all pairs of pages of a web search would require prohibitive storage. In general we would already need $\Theta(D)$ storage for a single pair. We need approximation algorithms to improve significantly on this bound.
 
 \section{Original Minwise Hashing}
 
@@ -147,12 +148,40 @@ w v u
 \end{center}
 \end{figure}
 
-We map both pages to sets of length-$2$-shingles. So $P_X$ becomes $\{ \text{``uv''}, \text{``vu''} \}$ and $P_Y$ becomes $\{ \text{``wv''}, \text{``vu''} \}$. Note that the mapping is indifferent to that ``uv'' occurs twice on $P_X$. When we continuously  number all possible shingles $\{ \text{``uu''}, \text{``uv''}, \text{``uw''}, \text{``vu''}, \text{``vv''}, \text{``vw''}, \text{``wu''}, \text{``wv''}, \text{``ww''},  \}$ and define this to be $\Omega$, we can visualize sets in a binary matrix
+We map both pages to sets of length-$2$-shingles. So $P_X$ becomes $\{ \text{``uv''}, \text{``vu''} \}$ and $P_Y$ becomes $\{ \text{``wv''}, \text{``vu''} \}$. Note that the mapping is indifferent to that ``uv'' occurs twice on $P_X$. When we continuously  number all possible shingles $\{ \text{``uu''}, \text{``uv''}, \text{``uw''}, \text{``vu''}, \text{``vv''}, \text{``vw''}, \text{``wu''}, \text{``wv''}, \text{``ww''} \}$ and define this to be $\Omega_{\text{shingle}}$, we can visualize sets in a binary matrix
 \begin{equation*}
 M \in \{ 0,1 \}^{N \times D}, \qquad M_{ni}=1\left\lbrace i \in S_n \right\rbrace.
 \end{equation*}
 
 Applied to our example, we get
+
+\begin{equation}
+M= 
+\begin{tikzpicture}[baseline = (M.center),% center with respect to the matrix center
+        every left delimiter/.style={xshift=1ex},%tighter delimiter spacing
+        every right delimiter/.style={xshift=-1ex}]
+\matrix (M) [matrix of math nodes,left delimiter={(},right delimiter={)} 
+        ]{ 
+0&1&0&1&0&0&0&0&0\\
+0&0&0&1&0&0&0&1&0\\
+};
+\node[anchor=south east] (cornernode) at (M-1-1.north west) {Sets: \qquad \qquad}; %Position this more precisely if desired
+\foreach[count=\xi] \x in {uu,uv,uw,vu,vv,vw,wu,wv,ww}{ %\xi is the counter \x is the value
+\node[font=\scriptsize] (M-0-\xi) at (cornernode -| M-1-\xi) {\x}; % Gets the top row 
+ }
+
+\foreach[count=\xi] \x in {$X$:,$Y$:}{ %\xi is the counter \x is the value
+\node (M-\xi-0) at (cornernode |- M-\xi-1) {\x}; %Gets the left most column
+}
+
+\draw[decoration=brace,decorate] (M-0-1.north west) -- (M-0-9.north east)%
+ node[midway,above] {$\Omega_{\text{shingle}}$};
+
+\end{tikzpicture}
+.
+\end{equation}
+
+Because working with an $\Omega_{\text{shingle}}$ of strings is nasty, we assume there is a perfect hash function applied to the elements of the original domain which always gives us $\Omega = \{0,1,\ldots,D-1\}$. Additionally we colour the columns of the matrix according to the three coloured subsets in Figure \vref{fig:sets}, e.g. a column with both entries equals to one represents an element contained in both sets. $M$ is rewritten with the new $\Omega$ as
 
 \begin{equation}
 M= 
@@ -173,17 +202,29 @@ M=
 \node (M-\xi-0) at (cornernode |- M-\xi-1) {\x}; %Gets the left most column
 }
 
+\node[color=blue, below = 0.1pt of M-2-2.south] {$b$};
+\node[color=red, below = 0.1pt of M-2-4.south] {$a$};
+\node[color=orange, below = 0.1pt of M-2-8.south] {$c$};
+
 \draw[decoration=brace,decorate] (M-0-1.north west) -- (M-0-9.north east)%
  node[midway,above] {$\Omega$};
 
+\begin{scope}[on background layer]
+\draw [draw=none, fill=blue!30] (M-1-2.north west) rectangle (M-2-2.south east);
+\draw [draw=none, fill=red!30] (M-1-4.north west) rectangle (M-2-4.south east);
+\draw [draw=none, fill=orange!30] (M-1-8.north west) rectangle (M-2-8.south east);
+\end{scope}
+
 \end{tikzpicture}
+.
 \end{equation}
 
 
-Suppose a random permutation $\pi$ is performed on $\Omega$\footnote{We assume there is a perfect hash function applied to the elements of the original domain which always gives us $\Omega = \{0,1,\ldots,D-1\}$. Note that in the paper \citep{LiK11}, the hash function is applied after the permutation and the minimum-function, but it is simpler to understand this way.},
-\[
-\pi:\Omega \longrightarrow \Omega, \qquad \text{where } \Omega = \{0,1,\ldots,D-1\}.
-\]
+For reasons which later become clear, suppose a random permutation $\pi$ is performed on $\Omega$\footnote{Note that in the paper \citep{LiK11}, the hash function is applied after the permutation and the minimum-function, but it is simpler to understand this way.},
+\begin{equation*}
+\pi:\Omega \longrightarrow \Omega.
+\end{equation*}
+
 
 To simplify notation, we overload the definition of $\pi$ to work also for subsets of $\Omega$. Thus with $\pi(S_n)$ we denote the application of the permutation $\pi$ to every element of the set $S_n$. More precisely,
 \begin{equation*}
@@ -193,27 +234,88 @@ To simplify notation, we overload the definition of $\pi$ to work also for subse
 \end{split}
 \end{equation*}
 
-We define
-\[
-h_{S_n,\pi}=min(\pi(S_n))
-\]
-to be the smallest element of set $S_n$ permuted with $\pi_j$. Note that the smallest element changes under the permutations because $\pi$ is a permutation on $\Omega$ and $S_n$ is only a subset of $\Omega$ in general.
+In the matrix representation, the application of $\pi$ can be seen as rearranging the matrix columns in a random order. For an exemplary chosen $\pi$ this could look like
 
-An elementary probability argument shows that for two sets $X,Y \subseteq \Omega$
-\begin{equation}\label{eq:minwiseOri}
-\Pr[h_{X,\pi}=h_{Y,\pi}]=\Pr [\min(\pi(X))=\min(\pi(Y))]=\frac{\left| X \cap Y \right|}{\left| X \cup Y \right|}=R.
+\begin{equation}
+M'= 
+\begin{tikzpicture}[baseline = (M.center),% center with respect to the matrix center
+        every left delimiter/.style={xshift=1ex},%tighter delimiter spacing
+        every right delimiter/.style={xshift=-1ex}]
+\matrix (M) [matrix of math nodes,left delimiter={(},right delimiter={)} 
+        ]{ 
+0&0&0&0&0&1&0&0&1\\
+0&0&1&0&0&1&0&0&0\\
+};
+\node[anchor=south east] (cornernode) at (M-1-1.north west) {Sets: \qquad \qquad}; %Position this more precisely if desired
+\foreach[count=\xi] \x in {0,1,2,3,4,5,6,7,8}{ %\xi is the counter \x is the value
+\node[font=\scriptsize] (M-0-\xi) at (cornernode -| M-1-\xi) {\x}; % Gets the top row 
+ }
+
+\foreach[count=\xi] \x in {$\pi(X)$:,$\pi(Y)$:}{ %\xi is the counter \x is the value
+\node (M-\xi-0) at (cornernode |- M-\xi-1) {\x}; %Gets the left most column
+}
+
+\node[color=blue, below = 0.1pt of M-2-9.south] {$b$};
+\node[color=red, below = 0.1pt of M-2-6.south] {$a$};
+\node[color=orange, below = 0.1pt of M-2-3.south] {$c$};
+
+\draw[decoration=brace,decorate] (M-0-1.north west) -- (M-0-9.north east)%
+ node[midway,above] {$\pi\left(\Omega \right)$};
+
+\begin{scope}[on background layer]
+\draw [draw=none, fill=blue!30] (M-1-9.north west) rectangle (M-2-9.south east);
+\draw [draw=none, fill=red!30] (M-1-6.north west) rectangle (M-2-6.south east);
+\draw [draw=none, fill=orange!30] (M-1-3.north west) rectangle (M-2-3.south east);
+\end{scope}
+
+
+\node[below = 8pt of M-2-1.south] {$\vartriangle$};
+\node[below = 8pt of M-2-2.south] {$\vartriangle$};
+\node[below = 8pt of M-2-3.south] {$\blacktriangle$};
+
+\end{tikzpicture}
+.
 \end{equation}
 
-We can now build an unbiased estimator $\hat{R}_M$ of $R$ with $k$ minwise independent permutations, $\pi_1,\pi_2,\ldots,\pi_k$:
+Suppose now there is a pointer $\blacktriangle$ starting at the left most column of $M'$, moving to the right until it sees the first column where there is at least one $1$ (i.e. skip columns of only zeros). In our example $\blacktriangle$ would stop at index $2$. We can ask for the probability of the event $\omega$, that $\blacktriangle$ stops at a column with two ones, which corresponds to the subset $a$:
+\begin{equation*}
+\Pr \left[ \blacktriangle \text{ stops at } \left(
+\begin{array}{c}
+1  \\
+1  \end{array}
+\right) \right] = \Pr \left[ \omega \right] = \frac{a}{a+b+c} = R,
+\end{equation*}
+
+because we randomly permuted the columns.
+To determine if or if not $\omega$ arises for the given permutation $\pi$, we only need the index of the left most $1$ in each row respectively the smallest element of each set $S_n$ permuted with $\pi$. We define this as
 \begin{equation}
+h_{S_n,\pi}=min(\pi(S_n)).\footnote{Note that the smallest element changes under the permutations because $\pi$ is a permutation on $\Omega$ and $S_n$ is only a subset of $\Omega$ in general.}
+\end{equation}
+
+
+This key observation leads to the crucial
+
+\begin{framed}
+\begin{mylemma} \label{lem:minwiseHashing}
+For any two sets $X,Y \subseteq \Omega$
+\begin{equation}\label{eq:minwiseOri}
+\Pr [\min(\pi(X))=\min(\pi(Y))]=\Pr[h_{X,\pi}=h_{Y,\pi}]=\frac{\left| X \cap Y \right|}{\left| X \cup Y \right|}=R.
+\end{equation}
+\end{mylemma}
+\end{framed}
+
+
+To estimate $R$ we must evaluate $\omega$ not only on one but $k$ independent random permutations $\pi_1,\pi_2,\ldots,\pi_k$. By averaging the outcomes we finally build the unbiased estimator
+\begin{equation}\label{eq:minwiseEstimator}
 \hat{R}_M=\frac{1}{k}\sum_{j=1}^k 1 \left\lbrace h_{X,\pi_j}=h_{Y,\pi_j} \right\rbrace,
 \end{equation}
 \begin{equation}\label{eq:minWiseVariance}
 Var(\hat{R}_M)=\frac{1}{k}R(1-R).
 \end{equation}
-We later refer to $h_{S_n,\pi_j}$ as a \textbf{sample} and to $k$ as the \textbf{sample size}. To store a \textbf{sample} may require e.g., $64$ bits. Note that the minimum function $\min(\cdot)$ needs $O(D)$ time and constant space and can be precomputed for each set $S_n$ and permutation $\pi_j$.\footnote{A detailed runtime analysis will follow for the improved algorithm in section \vref{sec:b-bitDrawbacks}}
 
-Many applications, especially duplicate detection, are interested in detecting somewhat high similarity, thus an approximation seems reasonable. From equation \vref{eq:minWiseVariance} we learn, that the accuracy can be adjusted by choosing the \textbf{sample size} appropriately.
+We later refer to $h_{S_n,\pi_j}$ as a \textbf{sample} and to $k$ as the \textbf{sample size}. Note that we only have to store a \textbf{sample} for each permutation and this for each set. But we can reuse the same permutations for all sets and precompute the $k$ \textbf{samples} for each set individually. The minimum function $\min(\cdot)$ needs $O(D)$ time. For a similarity calculation of two specific sets we then only have to make the computations from \vref{eq:minwiseEstimator}, thus $O(k)$ steps. For the precomputation especially the storage requirement for the samples is relevant. Altogether we learn that the algorithm has to consist of two phases, the precomputation and the similarity calculation.
+
+Many applications, especially duplicate detection, are interested in detecting somewhat high similarity, thus an approximation seems reasonable. From \vref{eq:minWiseVariance} we learn, that the accuracy can be adjusted by choosing the \textbf{sample size} appropriately. In practice we typically have a $k$ between $2^5$ to $2^8$.
 
 However, finding duplicates out of $m$ objects, e.g. web pages, still needs $O(m^2)$ comparisons. There are number of approaches to deal with that problem, but we will not discuss it here and refer to \citep{BroderGMZ97,STOC02*380}.
 
