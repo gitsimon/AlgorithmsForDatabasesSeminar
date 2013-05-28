@@ -1,7 +1,7 @@
 \documentclass[a4paper]{article}
 \author{Simon Wehrli}
-\date{10.5.2013}
-\title{Set similarity with b-bit k-permutation Minwise Hashing - DRAFT}
+\date{30.5.2013}
+\title{Set similarity with\\ b-bit k-permutation Minwise Hashing}
 
 \usepackage[parfill]{parskip}
 \usepackage{tikz} % for drawing advanced matrices
@@ -45,8 +45,8 @@ Many today's applications are faced with very large datasets. A common task is t
 
 We start by explaining the original \textsc{Minwise Hashing}, which nicely presents the basic idea behind all algorithms. We move on to a major improvement, the \textsc{b-bit k-permutation Minwise Hashing}, which reduces storage at the cost of more iterations in the algorithm and is a generalization of the concept. We then present \textsc{One Permutation Hashing}, which achieves surprising accuracy using only one permutation. We focus on the concepts and algorithms and will reference to papers for applications in practice.
 
+\subsection{Notations}
 
-\subsection{Similarity}
 We denote by $\Omega$ the set of all possible items of the sets $S_n \subseteq \Omega$, $n = 1 \text{ to } N$. $\left| \Omega \right| = D$ is always large (e.g. $D=2^{64}$). Often we consider only two sets $S_1 = X$, $S_2 = Y$. Let $a=|X \cap Y|,$ $b=|X|-a$ and $c=|Y|-a$. Figure \vref{fig:sets} summarizes these definitions graphically.
 
 \begin{figure}[H]
@@ -84,16 +84,29 @@ We denote by $\Omega$ the set of all possible items of the sets $S_n \subseteq \
 \label{fig:sets}
 \end{figure}
 
+\paragraph{Similarity}
+
+There exists different measurements of similarity. We will use the following throughout the paper:
+
 \begin{framed}
 \begin{mydef}\label{def:jaccard}
 The normalized similarity between two sets $X$ and $Y$, known as \emph{resemblance} or \emph{Jaccard similarity}, denoted by R, is
-\begin{equation}
+\begin{equation}\label{eq:R}
 R=\frac{\left| X \cap Y \right|}{\left| X \cup Y \right|} = \frac{a}{\left| X \right| + \left| Y \right| -a}=\frac{a}{a+b+c}
 \end{equation}
 \end{mydef}
 \end{framed}
 
-\paragraph{Other Notations}
+Another important similarity measurement is the \textit{Hamming distance}
+\begin{equation}\label{eq:H}
+H=\left| X \cup Y \right| - \left| X \cap Y \right| = \left| X \right| + \left| Y \right| -2a.
+\end{equation}
+Luckily, there is a direct transformation from one measurement to the other, by solving \vref{eq:R} after $a$ and inserting into \vref{eq:H}:
+\begin{equation}
+H= \left| X \right| + \left| Y \right| -2 \frac{R}{1+R} \left( |X| + |Y| \right) = \frac{1-R}{1+R} \left( |X| + |Y| \right).
+\end{equation}
+
+\paragraph{Probability}
  
 Later we often look at some important event of a problem where we use $\Pr[\cdot]$ as a shorthand for the \emph{Probability} of that event. To get an estimator for $R$ out of a probabilistic argument, we always use some Bernoulli experiment. This is a process, where we repeatedly flip a possibly biased coin, but the bias does not change. We can see it as a sequence of binary random variables, because only two outcomes are possible, $0$ or $1$. An event is described by an equation. We use the notation $1\left\lbrace \text{\textit{equation}} \right\rbrace$ which is one if and only if the \textit{equation} in curly braces is true:
 \begin{equation*}
@@ -102,6 +115,10 @@ Later we often look at some important event of a problem where we use $\Pr[\cdot
     0 & \text{otherwise}
 \end{cases}
 \end{equation*}
+
+\paragraph{Runtime/Storage Analysis}
+
+When we do the analysis of an algorithm, we use the big-$O$-notation. For storage requirement analysis we count in bits, because we later do optimizations on the bit level. This belongs to the \textit{logarithmic cost model}. Contrary, for runtime analyses we count in the \textit{uniform cost model}, thus each operation needs one unit of time. Especially for comparison operations of set elements, we assume that the binary representation always fits a 64-bit integer. This is equal to the realistic assumption that $D <= 2^{64}$.
 
 \subsection{Motivating Example}
 Consider a web search provider, which want to present a result list of web pages without duplicates. To achieve that, for every pair of web pages, we drop one of them, if they are textually very similar. This is the case when their \emph{resemblance} $R$ is greater than some threshold $R_0$. But to be able to use the \emph{resemblance} as a measurement, we have to map each page to a set. One could imagine to define this mapping from the page to the set of all words occurring on that page. But with this mapping would not keep track of the order in which their appear. As in several studies \citep{Broder:1998,BroderGMZ97} we will instead map a page to a set of \emph{shingles}. A shingle is a string of $w$ contiguous words, and we include a \emph{shingle} in our result set if the \emph{shingle} occurs on the page (in the same order). Typically we choose $w = 5$. Figure \vref{fig:shingle} shows an exemplary mapping.
@@ -127,6 +144,8 @@ This web page is just an example.
 \end{figure}
 
 Clearly, the number of possible shingles and therefore $D$ is huge. Assuming $10^5$ different English words, we have $D=\left(10^5\right)^5 \gg 2^{64}$. Thus computing the exact similarities for all pairs of pages of a web search would require prohibitive storage. In general we would already need $\Theta(D)$ storage for a single pair. We need approximation algorithms to improve significantly on this bound.
+
+However, finding duplicates out of $m$ objects, e.g. web pages, needs $O(m^2)$ comparisons even when approximating the similarity. This is a different problem and there are a  number of approaches to deal with it, but we will not discuss it here and refer to \citep{BroderGMZ97,STOC02*380}.
 
 \section{Original Minwise Hashing}
 
@@ -220,7 +239,7 @@ M=
 \end{equation}
 
 
-For reasons which later become clear, suppose a random permutation $\pi$ is performed on $\Omega$\footnote{Note that in the paper \citep{LiK11}, the hash function is applied after the permutation and the minimum-function, but it is simpler to understand this way.},
+For reasons which later become clear, suppose a random permutation $\pi$ is performed on $\Omega$,
 \begin{equation*}
 \pi:\Omega \longrightarrow \Omega.
 \end{equation*}
@@ -277,7 +296,7 @@ M'=
 .
 \end{equation}
 
-Suppose now there is a pointer $\blacktriangle$ starting at the left most column of $M'$, moving to the right until it sees the first column where there is at least one $1$ (i.e. skip columns of only zeros). In our example $\blacktriangle$ would stop at index $2$. We can ask for the probability of the event $\omega$, that $\blacktriangle$ stops at a column with two ones, which corresponds to the subset $a$:
+Suppose now there is a pointer $\blacktriangle$ starting at the left most column of $M'$, moving to the right until it sees the first column where there is at least one $1$ (i.e. skip columns of only zeros). In our example $\blacktriangle$ would stop at index $2$. We can define the event $\omega$, that $\blacktriangle$ stops at a column with two ones, which corresponds to the subset $a$. We ask for the probability of $\omega$ and find
 \begin{equation*}
 \Pr \left[ \blacktriangle \text{ stops at } \left(
 \begin{array}{c}
@@ -287,9 +306,9 @@ Suppose now there is a pointer $\blacktriangle$ starting at the left most column
 \end{equation*}
 
 because we randomly permuted the columns.
-To determine if or if not $\omega$ arises for the given permutation $\pi$, we only need the index of the left most $1$ in each row respectively the smallest element of each set $S_n$ permuted with $\pi$. We define this as
+To determine if or if not $\omega$ arises for the given permutation $\pi$, we only need the index of the left most $1$ in each row respectively the smallest element of each set $S_n$ permuted with $\pi$. We define this smallest element of the permuted set\footnote{Note that the smallest element changes under the permutations because $\pi$ is a permutation on $\Omega$ and $S_n$ is only a subset of $\Omega$ in general.} as
 \begin{equation}
-h_{S_n,\pi}=min(\pi(S_n)).\footnote{Note that the smallest element changes under the permutations because $\pi$ is a permutation on $\Omega$ and $S_n$ is only a subset of $\Omega$ in general.}
+h_{S_n,\pi}=min(\pi(S_n)).\footnote{The denotation $h$ is choosen, because the mapping can be interpreted as a hash function with desired properties for similarity estimation.}
 \end{equation}
 
 
@@ -305,7 +324,7 @@ For any two sets $X,Y \subseteq \Omega$
 \end{framed}
 
 
-To estimate $R$ we must evaluate $\omega$ not only on one but $k$ independent random permutations $\pi_1,\pi_2,\ldots,\pi_k$. By averaging the outcomes we finally build the unbiased estimator
+To estimate $R$ via a \textit{Bernoulli Process} we must evaluate $\omega$ not only once but on $k$ independent random permutations $\pi_1,\pi_2,\ldots,\pi_k$. By averaging the outcomes we finally build the estimator
 \begin{equation}\label{eq:minwiseEstimator}
 \hat{R}_M=\frac{1}{k}\sum_{j=1}^k 1 \left\lbrace h_{X,\pi_j}=h_{Y,\pi_j} \right\rbrace,
 \end{equation}
@@ -313,11 +332,13 @@ To estimate $R$ we must evaluate $\omega$ not only on one but $k$ independent ra
 Var(\hat{R}_M)=\frac{1}{k}R(1-R).
 \end{equation}
 
-We later refer to $h_{S_n,\pi_j}$ as a \textbf{sample} and to $k$ as the \textbf{sample size}. Note that we only have to store a \textbf{sample} for each permutation and this for each set. But we can reuse the same permutations for all sets and precompute the $k$ \textbf{samples} for each set individually. The minimum function $\min(\cdot)$ needs $O(D)$ time. For a similarity calculation of two specific sets we then only have to make the computations from \vref{eq:minwiseEstimator}, thus $O(k)$ steps. For the precomputation especially the storage requirement for the samples is relevant. Altogether we learn that the algorithm has to consist of two phases, the precomputation and the similarity calculation.
+It can be proven, that $\E(Var(\hat{R}_M)) = R$ which means that the estimator is unbiased.
+We later refer to $h_{S_n,\pi_j}$ as a \textbf{sample} and to $k$ as the \textbf{sample size}. Note that we only have to store a \textbf{sample} for each permutation and this for each set. But we can reuse the same $k$ permutations for all sets and precompute the $k$ \textbf{samples} for each set individually.
 
-Many applications, especially duplicate detection, are interested in detecting somewhat high similarity, thus an approximation seems reasonable. From \vref{eq:minWiseVariance} we learn, that the accuracy can be adjusted by choosing the \textbf{sample size} appropriately. In practice we typically have a $k$ between $2^5$ to $2^8$.
+The minimum function $\min(\cdot)$ needs $O(D)$ time. For a similarity calculation of two specific sets we then only have to make the computations from \vref{eq:minwiseEstimator}, thus $O(k)$ steps. Altogether we learn that the algorithm has to consist of two phases, the pre-processing and the similarity calculation.
+For the pre-processing especially the storage requirement of the samples is relevant. Each sample potentially needs $O(\log(D))$ bits, because the smallest element can be any element in $D$. By using $k$ permutations, we need $O(k \log(D))$ bits in total.
 
-However, finding duplicates out of $m$ objects, e.g. web pages, still needs $O(m^2)$ comparisons. There are number of approaches to deal with that problem, but we will not discuss it here and refer to \citep{BroderGMZ97,STOC02*380}.
+Many applications, especially duplicate detection tools, are interested in detecting somewhat high similarity, thus an approximation seems reasonable. From \vref{eq:minWiseVariance} we learn, that the accuracy can be adjusted by choosing the \textbf{sample size} appropriately. In practice we typically have a $k$ between $2^5$ to $2^8$. Even though $k$ can be considered as a constant, the storage requirement of the pre-processing often gets impractical.
 
 
 
